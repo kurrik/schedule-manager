@@ -1,0 +1,18 @@
+name = "schedule-manager-worker"
+main = "src/index.ts"
+compatibility_date = "2024-04-22"
+
+[vars]
+# These will be overridden by wrangler secret
+GOOGLE_CLIENT_ID = ""
+GOOGLE_CLIENT_SECRET = ""
+
+[[kv_namespaces]]
+binding = "KV"
+id = "__SCHEDULE_MANAGER_KV__" # Replace with your actual KV namespace id
+preview_id = "__SCHEDULE_MANAGER_KV_PREVIEW__" # Replace with your preview KV id
+
+[assets]
+binding = "ASSETS"
+directory = "./public"
+not_found_handling = "single-page-application"

@@ -1,0 +1,23 @@
+{
+  "name": "schedule-manager-worker",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "build": "wrangler build",
+    "deploy": "wrangler publish",
+    "typecheck": "tsc --noEmit --strict"
+  },
+  "dependencies": {
+    "hono": "^3.11.7",
+    "hono-simple-google-auth": "^0.4.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240404.0",
+    "@types/node": "^22.15.2",
+    "dotenv-cli": "^8.0.0",
+    "typescript": "^5.4.5",
+    "wrangler": "^4.12.1"
+  }
+}
