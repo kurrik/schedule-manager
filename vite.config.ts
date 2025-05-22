@@ -1,12 +1,15 @@
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
-import react from "@vitejs/plugin-react";
+import solidPlugin from 'vite-plugin-solid';
 import { cloudflare } from "@cloudflare/vite-plugin";
 
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), cloudflare()],
+  plugins: [solidPlugin(), tailwindcss(), cloudflare()],
   server: {
     port: 3000,
+  },
+  build: {
+    target: 'esnext',
   },
 });
