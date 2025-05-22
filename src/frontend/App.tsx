@@ -1,41 +1,43 @@
-import { Component, Show, createEffect } from 'solid-js';
-import { createResource } from "solid-js";
-
-const fetchUser = async () => {
-  const response = await fetch('/api/me');
-  if (response.status === 401) {
-    window.location.href = '/auth/signin';
-    return null;
-  }
-  return response.json();
-};
+import { Component, createSignal, onMount, Show } from 'solid-js';
+import { A, useNavigate } from '@solidjs/router';
+import LoadingSpinner from './components/common/LoadingSpinner';
+import { useApi } from './services/api';
+import AppLayout from './components/layout/AppLayout';
+import ScheduleList from './components/schedule/ScheduleList';
 
 const App: Component = () => {
-  const [user] = createResource(fetchUser);
+  const api = useApi();
+  const [isAuthenticated, setIsAuthenticated] = createSignal<boolean | null>(null);
+  const [isLoading, setIsLoading] = createSignal(true);
+  const navigate = useNavigate();
 
-  const handleSignOut = () => {
-    window.location.href = '/auth/signout';
-  };
+  // Debug: log on each render
+  console.log('App component rendered', { isLoading: isLoading(), isAuthenticated: isAuthenticated() });
 
+  onMount(async () => {
+    try {
+      await api.getCurrentUser();
+      console.log('User authenticated');
+      setIsAuthenticated(true);
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      setIsAuthenticated(false);
+      window.location.href = '/auth/signin';
+    } finally {
+      setIsLoading(false);
+      console.log('setIsLoading(false) called');
+    }
+  });
+
+  // Use <Show> for conditional rendering (SolidJS best practice)
   return (
-    <div class="min-h-screen bg-gray-100">
-      <Show when={!user.loading}>
-        <div class="max-w-4xl mx-auto px-4 py-8">
-          <div class="bg-white rounded-lg shadow-md p-6">
-            <div class="flex justify-between items-center mb-6">
-              <h1 class="text-2xl font-bold text-gray-800">Welcome to Schedule Manager</h1>
-              <button
-                onClick={handleSignOut}
-                class="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors"
-              >
-                Sign Out
-              </button>
-            </div>
-            <p class="text-lg text-gray-700">Hello, {user()?.name || 'User'}</p>
-          </div>
-        </div>
+    <Show when={!isLoading()} fallback={<LoadingSpinner fullScreen={true} />}>
+      <Show when={isAuthenticated()}>
+        <AppLayout>
+          <ScheduleList />
+        </AppLayout>
       </Show>
-    </div>
+    </Show>
   );
 };
 

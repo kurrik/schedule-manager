@@ -51,7 +51,6 @@
   "assets": {
     "not_found_handling": "single-page-application",
     "binding": "ASSETS",
-    "run_worker_first": true
   },
   /**
 	 * Service Bindings (communicate between multiple Workers)

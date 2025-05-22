@@ -13,6 +13,8 @@
     "cf-typegen": "npx wrangler types"
   },
   "dependencies": {
+    "@types/date-fns": "^2.5.3",
+    "date-fns": "^4.1.0",
     "hono": "^3.11.7",
     "hono-simple-google-auth": "^0.4.0"
   },
@@ -23,8 +25,13 @@
     "@solidjs/start": "^1.1.4",
     "@tailwindcss/vite": "^4.1.7",
     "@types/node": "^22.15.2",
+    "autoprefixer": "^10.4.21",
+    "daisyui": "^5.0.37",
     "dotenv-cli": "^8.0.0",
+    "postcss": "^8.5.3",
+    "postcss-nesting": "^13.0.1",
     "solid-js": "^1.9.7",
+    "tailwindcss": "^4.1.7",
     "typescript": "^5.4.5",
     "vite": "^6.3.5",
     "vite-plugin-solid": "^2.11.6",

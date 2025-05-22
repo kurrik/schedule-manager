@@ -1,1 +1,40 @@
-@import 'tailwindcss';
+@import "tailwindcss";
+@plugin "daisyui";
+
+/* Base styles */
+@layer base {
+  :root {
+    --b1: 255 255 255;
+    /* Base-100 color for light mode */
+    --bc: 0 0% 20%;
+    /* Base content color for light mode */
+  }
+
+
+  [data-theme="dark"] {
+    --b1: 17 17 17;
+    /* Base-100 color for dark mode */
+    --bc: 0 0% 90%;
+    /* Base content color for dark mode */
+  }
+}
+
+/* Custom styles */
+@layer components {
+  /* Add your custom component styles here */
+}
+
+/* Utilities */
+@layer utilities {
+  /* Add your custom utilities here */
+}
+
+/* Base styles */
+body {
+  min-height: 100vh;
+  background-color: hsl(var(--b1));
+  color: hsl(var(--bc));
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 200ms;
+}
