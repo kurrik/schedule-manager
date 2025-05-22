@@ -4,20 +4,30 @@
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
-    "dev": "wrangler dev",
-    "build": "wrangler build",
-    "deploy": "wrangler publish",
-    "typecheck": "tsc --noEmit --strict"
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit --strict",
+    "preview": "vite preview",
+    "deploy": "wrangler deploy"
   },
   "dependencies": {
     "hono": "^3.11.7",
-    "hono-simple-google-auth": "^0.4.0"
+    "hono-simple-google-auth": "^0.4.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20240404.0",
+    "@cloudflare/vite-plugin": "^1.2.4",
+    "@cloudflare/workers-types": "^4.20250522.0",
+    "@tailwindcss/vite": "^4.1.7",
     "@types/node": "^22.15.2",
+    "@types/react": "^19.1.5",
+    "@types/react-dom": "^19.1.5",
+    "@vitejs/plugin-react": "^4.4.1",
     "dotenv-cli": "^8.0.0",
     "typescript": "^5.4.5",
-    "wrangler": "^4.12.1"
+    "vite": "^6.3.5",
+    "wrangler": "^4.16.1"
   }
 }
