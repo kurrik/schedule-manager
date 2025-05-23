@@ -14,6 +14,7 @@ export class Schedule {
   private props: ScheduleProps;
 
   constructor(props: ScheduleProps) {
+    console.log('[DEBUG] Schedule constructor props:', props);
     this.props = { ...props, sharedUserIds: [...props.sharedUserIds], entries: [...props.entries] };
     this.validate();
   }

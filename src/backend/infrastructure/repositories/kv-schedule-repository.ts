@@ -20,14 +20,18 @@ export class KVScheduleRepository implements IScheduleRepository {
   async findByUserId(userId: string): Promise<Schedule[]> {
     // Note: This is a simplified implementation. In a real app, you'd want to maintain
     // an index of schedules by user ID.
-    const allSchedules = await this.kv.list<ScheduleProps>({ prefix: `${this.namespace}:` });
+    const allSchedules = await this.kv.list({ prefix: `${this.namespace}:` });
+    console.log('[DEBUG] Schedule keys found:', allSchedules.keys.map(k => k.name));
     const schedules: Schedule[] = [];
 
     for (const key of allSchedules.keys) {
       if (key.name) {
         const data = await this.kv.get<ScheduleProps>(key.name, 'json');
-        if (data && (data.ownerId === userId || data.sharedUserIds?.includes(userId))) {
-          schedules.push(new Schedule(data));
+        if (data) {
+          console.log(`[DEBUG] Loaded schedule id=${data.id} ownerId=${data.ownerId}`);
+          if (data.ownerId === userId || data.sharedUserIds?.includes(userId)) {
+            schedules.push(new Schedule(data));
+          }
         }
       }
     }

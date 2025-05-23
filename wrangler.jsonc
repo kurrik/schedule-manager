@@ -28,7 +28,7 @@
   "kv_namespaces": [
     {
       "binding": "KV",
-      "id": "__SCHEDULE_MANAGER_KV__",
+      "id": "4378b139d94941d5bf12f9eb0492124b",
       "preview_id": "__SCHEDULE_MANAGER_KV_PREVIEW__"
     }
   ],
