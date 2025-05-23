@@ -19,6 +19,7 @@ const ScheduleDetail: Component = () => {
     name: '',
     timeZone: '',
   });
+  const [currentViewDate, setCurrentViewDate] = createSignal(new Date());
   const [entryForm, setEntryForm] = createSignal<ScheduleEntry>({
     name: '',
     dayOfWeek: 0,
@@ -175,6 +176,65 @@ const ScheduleDetail: Component = () => {
     return grouped;
   };
 
+  // Calendar view utilities
+  const formatMonthYear = (date: Date): string => {
+    return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  };
+
+  const navigateMonth = (direction: 'prev' | 'next') => {
+    const newDate = new Date(currentViewDate());
+    if (direction === 'prev') {
+      newDate.setMonth(newDate.getMonth() - 1);
+    } else {
+      newDate.setMonth(newDate.getMonth() + 1);
+    }
+    setCurrentViewDate(newDate);
+  };
+
+  // Generate calendar days for the current month view
+  const calendarDays = () => {
+    const viewDate = currentViewDate();
+    const year = viewDate.getFullYear();
+    const month = viewDate.getMonth();
+    
+    // First day of the month
+    const firstDay = new Date(year, month, 1);
+    // Last day of the month
+    const lastDay = new Date(year, month + 1, 0);
+    
+    // Get the day of week for the first day (0 = Sunday)
+    const startingDayOfWeek = firstDay.getDay();
+    
+    // Total days to show (6 weeks * 7 days = 42 days)
+    const totalDays = 42;
+    const days = [];
+    
+    // Start from the beginning of the week containing the first day
+    const startDate = new Date(firstDay);
+    startDate.setDate(startDate.getDate() - startingDayOfWeek);
+    
+    for (let i = 0; i < totalDays; i++) {
+      const currentDate = new Date(startDate);
+      currentDate.setDate(startDate.getDate() + i);
+      
+      const isCurrentMonth = currentDate.getMonth() === month;
+      const dayOfWeek = currentDate.getDay();
+      
+      // Find entries for this day of week
+      const dayEntries = schedule()?.entries.filter(entry => entry.dayOfWeek === dayOfWeek) || [];
+      
+      days.push({
+        date: currentDate,
+        day: currentDate.getDate(),
+        isCurrentMonth,
+        dayOfWeek,
+        entries: dayEntries,
+      });
+    }
+    
+    return days;
+  };
+
   return (
     <Show when={!isLoading()} fallback={<LoadingSpinner fullScreen={false} />}>
       <Show when={schedule() && !error()} fallback={<div class="alert alert-error">{error()}</div>}>
@@ -240,7 +300,7 @@ const ScheduleDetail: Component = () => {
           </div>
 
           {/* iCal Feed Section */}
-          <div class="bg-base-200 rounded-lg p-6">
+          <div class="bg-base-200 rounded-lg p-6 mb-8">
             <h2 class="text-xl font-semibold mb-4">iCal Feed</h2>
             <div class="flex items-center gap-4">
               <input 
@@ -258,6 +318,74 @@ const ScheduleDetail: Component = () => {
             <p class="text-sm text-gray-600 mt-2">
               Use this URL to subscribe to this schedule in your calendar app.
             </p>
+          </div>
+
+          {/* Monthly Calendar View */}
+          <div class="bg-base-200 rounded-lg p-6">
+            <div class="flex items-center justify-between mb-6">
+              <h2 class="text-xl font-semibold">Calendar View</h2>
+              <div class="flex items-center gap-4">
+                <button 
+                  class="btn btn-outline btn-sm"
+                  onClick={() => navigateMonth('prev')}
+                >
+                  ← Previous
+                </button>
+                <span class="text-lg font-medium min-w-48 text-center">
+                  {formatMonthYear(currentViewDate())}
+                </span>
+                <button 
+                  class="btn btn-outline btn-sm"
+                  onClick={() => navigateMonth('next')}
+                >
+                  Next →
+                </button>
+              </div>
+            </div>
+
+            {/* Calendar Grid */}
+            <div class="grid grid-cols-7 gap-1">
+              {/* Day headers */}
+              <For each={dayNames}>
+                {(dayName) => (
+                  <div class="p-2 text-center font-semibold text-sm bg-base-300">
+                    {dayName.slice(0, 3)}
+                  </div>
+                )}
+              </For>
+
+              {/* Calendar days */}
+              <For each={calendarDays()}>
+                {(day) => (
+                  <div class={`min-h-24 p-1 border border-base-300 ${
+                    day.isCurrentMonth ? 'bg-base-100' : 'bg-base-300/50'
+                  }`}>
+                    <div class={`text-sm font-medium mb-1 ${
+                      day.isCurrentMonth ? 'text-base-content' : 'text-base-content/50'
+                    }`}>
+                      {day.day}
+                    </div>
+                    <div class="space-y-1">
+                      <For each={day.entries}>
+                        {(entry) => (
+                          <div class="bg-primary text-primary-content text-xs p-1 rounded truncate">
+                            <div class="font-medium">{entry.name}</div>
+                            <div class="opacity-90">
+                              {formatTime(entry.startTimeMinutes)}
+                            </div>
+                          </div>
+                        )}
+                      </For>
+                    </div>
+                  </div>
+                )}
+              </For>
+            </div>
+
+            <div class="mt-4 text-sm text-gray-600">
+              <p>This calendar shows when your recurring schedule entries will occur each month.</p>
+              <p class="mt-1">Future override functionality will allow you to modify or cancel specific dates.</p>
+            </div>
           </div>
         </div>
 
