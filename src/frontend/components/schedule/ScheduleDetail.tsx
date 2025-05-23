@@ -76,14 +76,6 @@ const ScheduleDetail: Component = () => {
     return `${displayHours}:${mins.toString().padStart(2, '0')} ${ampm}`;
   };
 
-  const timeToMinutes = (timeStr: string): number => {
-    const [time, ampm] = timeStr.split(' ');
-    const [hours, minutes] = time.split(':').map(Number);
-    let totalMinutes = (hours % 12) * 60 + minutes;
-    if (ampm === 'PM' && hours !== 12) totalMinutes += 12 * 60;
-    if (ampm === 'AM' && hours === 12) totalMinutes = minutes;
-    return totalMinutes;
-  };
 
   const handleAddEntry = async (e: Event) => {
     e.preventDefault();
@@ -230,8 +222,6 @@ const ScheduleDetail: Component = () => {
     
     // First day of the month
     const firstDay = new Date(year, month, 1);
-    // Last day of the month
-    const lastDay = new Date(year, month + 1, 0);
     
     // Get the day of week for the first day (0 = Sunday)
     const startingDayOfWeek = firstDay.getDay();
