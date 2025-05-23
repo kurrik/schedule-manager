@@ -1,4 +1,4 @@
-import { Component, createSignal, onMount, Show, For } from 'solid-js';
+import { Component, createSignal, onMount, onCleanup, Show, For } from 'solid-js';
 import { useParams, A, useNavigate } from '@solidjs/router';
 import { useApi, type Schedule, type ScheduleEntry } from '../../services/api';
 import LoadingSpinner from '../common/LoadingSpinner';
@@ -43,8 +43,29 @@ const ScheduleDetail: Component = () => {
     }
   };
 
+  // Handle ESC key to close modals
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      if (showAddEntryModal()) {
+        setShowAddEntryModal(false);
+      } else if (showEditModal()) {
+        setShowEditModal(false);
+        setEditingEntryIndex(null);
+      } else if (showEditScheduleModal()) {
+        setShowEditScheduleModal(false);
+      } else if (showDeleteScheduleModal()) {
+        setShowDeleteScheduleModal(false);
+      }
+    }
+  };
+
   onMount(() => {
     loadSchedule();
+    document.addEventListener('keydown', handleKeyDown);
+  });
+
+  onCleanup(() => {
+    document.removeEventListener('keydown', handleKeyDown);
   });
 
   const formatTime = (minutes: number): string => {
@@ -122,6 +143,16 @@ const ScheduleDetail: Component = () => {
     setEntryForm({ ...entry });
     setEditingEntryIndex(index);
     setShowEditModal(true);
+  };
+
+  const openAddModalForDay = (dayOfWeek: number) => {
+    setEntryForm({
+      name: '',
+      dayOfWeek: dayOfWeek,
+      startTimeMinutes: 540, // 9:00 AM
+      durationMinutes: 60,
+    });
+    setShowAddEntryModal(true);
   };
 
   const openEditScheduleModal = () => {
@@ -267,12 +298,6 @@ const ScheduleDetail: Component = () => {
               </div>
               <p class="text-gray-600">Time Zone: {schedule()?.timeZone}</p>
             </div>
-            <button 
-              class="btn btn-primary" 
-              onClick={() => setShowAddEntryModal(true)}
-            >
-              + Add Entry
-            </button>
           </div>
 
           {/* Weekly Grid */}
@@ -280,7 +305,7 @@ const ScheduleDetail: Component = () => {
             <For each={dayNames}>{(dayName, dayIndex) => (
               <div class="bg-base-200 rounded-lg p-4">
                 <h3 class="font-semibold text-center mb-3">{dayName}</h3>
-                <div class="space-y-2">
+                <div class="space-y-2 min-h-20">
                   <For each={entriesByDay()[dayIndex()]}>
                     {(entry: any) => (
                       <div 
@@ -294,6 +319,14 @@ const ScheduleDetail: Component = () => {
                       </div>
                     )}
                   </For>
+                  <div 
+                    class="border-2 border-dashed border-base-300 rounded p-4 text-center cursor-pointer hover:border-primary hover:bg-base-100 transition-colors"
+                    onClick={() => openAddModalForDay(dayIndex())}
+                  >
+                    <div class="text-base-content/50 text-sm">
+                      + Add entry
+                    </div>
+                  </div>
                 </div>
               </div>
             )}</For>
