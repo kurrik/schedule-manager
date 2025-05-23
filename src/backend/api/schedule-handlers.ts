@@ -1,6 +1,6 @@
 import type { Context } from 'hono';
 import type { Env } from '../main';
-import { KVUnitOfWork } from '../infrastructure/unit-of-work/kv-unit-of-work';
+import { D1UnitOfWork } from '../infrastructure/unit-of-work/d1-unit-of-work';
 import { Schedule } from '../domain/models/schedule';
 import { ScheduleEntry } from '../domain/models/schedule-entry';
 
@@ -27,7 +27,7 @@ export async function getSchedules(c: Context<AppContext>) {
     return c.json({ error: 'Not authenticated' }, 401);
   }
 
-  const uow = new KVUnitOfWork(c.env.KV);
+  const uow = new D1UnitOfWork(c.env.DB);
   try {
     const schedules = await uow.schedules.findByUserId(user.id);
     return c.json({ schedules: schedules.map(s => s.toJSON()) });
@@ -53,7 +53,7 @@ export async function createSchedule(c: Context<AppContext>) {
     return c.json({ error: 'Name and timeZone are required' }, 400);
   }
 
-  const uow = new KVUnitOfWork(c.env.KV);
+  const uow = new D1UnitOfWork(c.env.DB);
   try {
     // Generate a unique URL-friendly ID for the iCal feed
     const icalUrl = `ical-${crypto.randomUUID().replace(/-/g, '')}`;
@@ -92,7 +92,7 @@ export async function getSchedule(c: Context<AppContext>) {
     return c.json({ error: 'Schedule ID is required' }, 400);
   }
 
-  const uow = new KVUnitOfWork(c.env.KV);
+  const uow = new D1UnitOfWork(c.env.DB);
   try {
     const schedule = await uow.schedules.findById(id);
     if (!schedule) {
@@ -131,7 +131,7 @@ export async function updateSchedule(c: Context<AppContext>) {
     return c.json({ error: 'At least one field (name or timeZone) is required' }, 400);
   }
 
-  const uow = new KVUnitOfWork(c.env.KV);
+  const uow = new D1UnitOfWork(c.env.DB);
   try {
     const schedule = await uow.schedules.findById(id);
     if (!schedule) {
@@ -185,7 +185,7 @@ export async function addScheduleEntry(c: Context<AppContext>) {
     return c.json({ error: 'All fields are required: name, dayOfWeek, startTimeMinutes, durationMinutes' }, 400);
   }
 
-  const uow = new KVUnitOfWork(c.env.KV);
+  const uow = new D1UnitOfWork(c.env.DB);
   try {
     const schedule = await uow.schedules.findById(id);
     if (!schedule) {
@@ -244,7 +244,7 @@ export async function updateScheduleEntry(c: Context<AppContext>) {
     return c.json({ error: 'All fields are required: name, dayOfWeek, startTimeMinutes, durationMinutes' }, 400);
   }
 
-  const uow = new KVUnitOfWork(c.env.KV);
+  const uow = new D1UnitOfWork(c.env.DB);
   try {
     const schedule = await uow.schedules.findById(id);
     if (!schedule) {
@@ -297,7 +297,7 @@ export async function deleteScheduleEntry(c: Context<AppContext>) {
     return c.json({ error: 'Entry index must be a number' }, 400);
   }
 
-  const uow = new KVUnitOfWork(c.env.KV);
+  const uow = new D1UnitOfWork(c.env.DB);
   try {
     const schedule = await uow.schedules.findById(id);
     if (!schedule) {
@@ -336,7 +336,7 @@ export async function deleteSchedule(c: Context<AppContext>) {
     return c.json({ error: 'Schedule ID is required' }, 400);
   }
 
-  const uow = new KVUnitOfWork(c.env.KV);
+  const uow = new D1UnitOfWork(c.env.DB);
   try {
     const schedule = await uow.schedules.findById(id);
     if (!schedule) {

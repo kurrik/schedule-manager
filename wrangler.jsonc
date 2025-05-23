@@ -32,6 +32,13 @@
       "preview_id": "__SCHEDULE_MANAGER_KV_PREVIEW__"
     }
   ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "schedule-manager",
+      "database_id": "46e6f09b-0b12-4e86-9edc-7e0265e0038f"
+    }
+  ],
   /**
 	 * Environment Variables
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables

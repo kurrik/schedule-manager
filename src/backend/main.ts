@@ -1,13 +1,13 @@
 import { Hono, type Context, type Next } from 'hono';
 import { honoSimpleGoogleAuth, createKVSessionStore, type GoogleAuthEnv } from 'hono-simple-google-auth';
-import type { KVNamespace, Fetcher } from '@cloudflare/workers-types';
+import type { KVNamespace, Fetcher, D1Database } from '@cloudflare/workers-types';
 import { scheduleHandlers } from './api/schedule-handlers';
-import { KVUnitOfWork } from './infrastructure/unit-of-work/kv-unit-of-work';
 import { ICalService } from './domain/services/ical-service';
 
 export type Env = GoogleAuthEnv & {
   Bindings: {
-    KV: KVNamespace;
+    KV: KVNamespace; // Still needed for sessions
+    DB: D1Database;   // New D1 database
     GOOGLE_CLIENT_ID: string;
     GOOGLE_CLIENT_SECRET: string;
     ASSETS: Fetcher;
@@ -41,11 +41,12 @@ app.use('*', async (c, next) => {
 });
 
 // Middleware to upsert user and attach to context
-import { KVUserRepository } from './infrastructure/repositories/kv-user-repository';
+import { D1UserRepository } from './infrastructure/repositories/d1-user-repository';
+import { D1ScheduleRepository } from './infrastructure/repositories/d1-schedule-repository';
 const upsertUserMiddleware = async (c: Context<AppContext>, next: Next) => {
   const session = c.get('session');
   if (session?.signedIn && session.email) {
-    const userRepo = new KVUserRepository(c.env.KV);
+    const userRepo = new D1UserRepository(c.env.DB);
     const user = await userRepo.upsertByEmail({
       email: session.email,
       displayName: session.name,
@@ -99,8 +100,8 @@ app.get('/ical/:icalUrl', async (c) => {
   }
 
   try {
-    const uow = new KVUnitOfWork(c.env.KV);
-    const schedule = await uow.schedules.findByICalUrl(icalUrl);
+    const scheduleRepo = new D1ScheduleRepository(c.env.DB);
+    const schedule = await scheduleRepo.findByICalUrl(icalUrl);
     
     if (!schedule) {
       return c.notFound();
