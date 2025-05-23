@@ -1,4 +1,4 @@
-import { createSignal, onMount, For, JSX, createEffect, Show } from 'solid-js';
+import { Component, createSignal, onMount, For, createEffect, Show } from 'solid-js';
 import { useApi } from '../../services/api';
 import { A, useParams, useLocation } from '@solidjs/router';
 import LoadingSpinner from '../common/LoadingSpinner';
@@ -10,11 +10,7 @@ interface Schedule {
   icalUrl?: string;
 }
 
-interface ScheduleListProps {
-  onCreateSchedule?: () => void;
-}
-
-const ScheduleList = (props: ScheduleListProps) => {
+const ScheduleList: Component = () => {
   console.log('ScheduleList rendering');
   const api = useApi();
   const params = useParams();

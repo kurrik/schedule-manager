@@ -39,6 +39,23 @@ export class KVScheduleRepository implements IScheduleRepository {
     return schedules;
   }
 
+  async findByICalUrl(icalUrl: string): Promise<Schedule | null> {
+    // Note: This is also a simplified implementation. In a real app, you'd maintain
+    // an index by icalUrl for better performance.
+    const allSchedules = await this.kv.list({ prefix: `${this.namespace}:` });
+    
+    for (const key of allSchedules.keys) {
+      if (key.name) {
+        const data = await this.kv.get<ScheduleProps>(key.name, 'json');
+        if (data && data.icalUrl === icalUrl) {
+          return new Schedule(data);
+        }
+      }
+    }
+
+    return null;
+  }
+
   async save(schedule: Schedule): Promise<void> {
     await this.kv.put(
       this.getKey(schedule.id),

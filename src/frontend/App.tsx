@@ -1,15 +1,12 @@
 import { Component, createSignal, onMount, Show } from 'solid-js';
-import { A, useNavigate } from '@solidjs/router';
 import LoadingSpinner from './components/common/LoadingSpinner';
 import { useApi } from './services/api';
 import AppLayout from './components/layout/AppLayout';
-import ScheduleList from './components/schedule/ScheduleList';
 
-const App: Component = () => {
+const App: Component<{ children?: any }> = (props) => {
   const api = useApi();
   const [isAuthenticated, setIsAuthenticated] = createSignal<boolean | null>(null);
   const [isLoading, setIsLoading] = createSignal(true);
-  const navigate = useNavigate();
 
   // Debug: log on each render
   console.log('App component rendered', { isLoading: isLoading(), isAuthenticated: isAuthenticated() });
@@ -34,7 +31,7 @@ const App: Component = () => {
     <Show when={!isLoading()} fallback={<LoadingSpinner fullScreen={true} />}>
       <Show when={isAuthenticated()}>
         <AppLayout>
-          <ScheduleList />
+          {props.children}
         </AppLayout>
       </Show>
     </Show>

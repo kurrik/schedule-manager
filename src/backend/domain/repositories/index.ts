@@ -27,6 +27,7 @@ export interface IUserRepository {
 export interface IScheduleRepository {
   findById(id: string): Promise<Schedule | null>;
   findByUserId(userId: string): Promise<Schedule[]>;
+  findByICalUrl(icalUrl: string): Promise<Schedule | null>;
   save(schedule: Schedule): Promise<void>;
   delete(id: string): Promise<void>;
 }

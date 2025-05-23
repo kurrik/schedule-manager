@@ -14,8 +14,13 @@ export class Schedule {
   private props: ScheduleProps;
 
   constructor(props: ScheduleProps) {
-    console.log('[DEBUG] Schedule constructor props:', props);
-    this.props = { ...props, sharedUserIds: [...props.sharedUserIds], entries: [...props.entries] };
+    this.props = { 
+      ...props, 
+      sharedUserIds: [...props.sharedUserIds], 
+      entries: props.entries.map(entry => 
+        entry instanceof ScheduleEntry ? entry : new ScheduleEntry(entry)
+      )
+    };
     this.validate();
   }
 
@@ -61,6 +66,23 @@ export class Schedule {
     this.props.sharedUserIds = this.props.sharedUserIds.filter(id => id !== userId);
   }
 
+  updateName(newName: string): void {
+    this.props.name = newName;
+  }
+
+  updateTimeZone(newTimeZone: string): void {
+    if (!Intl.supportedValuesOf('timeZone').includes(newTimeZone)) {
+      throw new Error('Invalid timezone');
+    }
+    this.props.timeZone = newTimeZone;
+  }
+
+  updateEntry(entryIndex: number, newEntry: ScheduleEntry): void {
+    if (entryIndex >= 0 && entryIndex < this.props.entries.length) {
+      this.props.entries[entryIndex] = newEntry;
+    }
+  }
+
   toJSON() {
     return {
       id: this.id,
@@ -69,7 +91,9 @@ export class Schedule {
       name: this.name,
       timeZone: this.timeZone,
       icalUrl: this.icalUrl,
-      entries: this.entries.map(entry => entry.toJSON()),
+      entries: this.entries.map(entry => 
+        entry instanceof ScheduleEntry ? entry.toJSON() : entry
+      ),
     };
   }
 }

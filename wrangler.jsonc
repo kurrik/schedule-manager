@@ -39,6 +39,7 @@
   "vars": {
     "GOOGLE_CLIENT_ID": "",
     "GOOGLE_CLIENT_SECRET": "",
+    "ROOT_DOMAIN": ""
   },
   /**
 	 * Note: Use secrets to store sensitive data.

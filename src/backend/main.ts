@@ -2,6 +2,8 @@ import { Hono, type Context, type Next } from 'hono';
 import { honoSimpleGoogleAuth, createKVSessionStore, type GoogleAuthEnv } from 'hono-simple-google-auth';
 import type { KVNamespace, Fetcher } from '@cloudflare/workers-types';
 import { scheduleHandlers } from './api/schedule-handlers';
+import { KVUnitOfWork } from './infrastructure/unit-of-work/kv-unit-of-work';
+import { ICalService } from './domain/services/ical-service';
 
 export type Env = GoogleAuthEnv & {
   Bindings: {
@@ -9,6 +11,7 @@ export type Env = GoogleAuthEnv & {
     GOOGLE_CLIENT_ID: string;
     GOOGLE_CLIENT_SECRET: string;
     ASSETS: Fetcher;
+    ROOT_DOMAIN?: string; // Optional override for production domain
   };
 };
 
@@ -80,12 +83,44 @@ app.get('/api/me', async (c) => {
 // Schedule routes
 app.get('/api/schedules', scheduleHandlers.getSchedules);
 app.post('/api/schedules', scheduleHandlers.createSchedule);
+app.get('/api/schedules/:id', scheduleHandlers.getSchedule);
+app.put('/api/schedules/:id', scheduleHandlers.updateSchedule);
+app.post('/api/schedules/:id/entries', scheduleHandlers.addScheduleEntry);
+app.put('/api/schedules/:id/entries/:index', scheduleHandlers.updateScheduleEntry);
+app.delete('/api/schedules/:id/entries/:index', scheduleHandlers.deleteScheduleEntry);
 
 // --- Public iCal Feed Route ---
 app.get('/ical/:icalUrl', async (c) => {
-  // Serve iCal feed for the given schedule
-  // TODO: Implement actual iCal feed logic
-  return c.text('BEGIN:VCALENDAR\n...');
+  const { icalUrl } = c.req.param();
+  
+  if (!icalUrl) {
+    return c.notFound();
+  }
+
+  try {
+    const uow = new KVUnitOfWork(c.env.KV);
+    const schedule = await uow.schedules.findByICalUrl(icalUrl);
+    
+    if (!schedule) {
+      return c.notFound();
+    }
+
+    // Generate the iCal feed
+    const icalService = new ICalService();
+    const url = new URL(c.req.url);
+    const baseUrl = c.env.ROOT_DOMAIN || `${url.protocol}//${url.host}`;
+    const icalContent = icalService.generateFeed(schedule, baseUrl);
+
+    // Return with proper Content-Type and headers
+    return c.text(icalContent, 200, {
+      'Content-Type': 'text/calendar; charset=utf-8',
+      'Content-Disposition': `attachment; filename="${schedule.name.replace(/[^a-zA-Z0-9]/g, '_')}.ics"`,
+      'Cache-Control': 'public, max-age=300', // Cache for 5 minutes
+    });
+  } catch (error) {
+    console.error('Error generating iCal feed:', error);
+    return c.text('Internal Server Error', 500);
+  }
 });
 
 // Catch-all route for frontend assets and client-side routing

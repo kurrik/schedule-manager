@@ -1,5 +1,12 @@
 import { createSignal } from 'solid-js';
 
+export interface ScheduleEntry {
+  name: string;
+  dayOfWeek: number; // 0-6 where 0 is Sunday
+  startTimeMinutes: number; // Minutes since midnight (0-1439)
+  durationMinutes: number; // Duration in minutes (15-min increments)
+}
+
 export interface Schedule {
   id: string;
   name: string;
@@ -7,13 +14,7 @@ export interface Schedule {
   icalUrl: string;
   ownerId: string;
   sharedUserIds: string[];
-  entries: Array<{
-    id: string;
-    title: string;
-    startTime: string;
-    endTime: string;
-    dayOfWeek: number;
-  }>;
+  entries: ScheduleEntry[];
 }
 
 const API_BASE_URL = '/api';
@@ -63,6 +64,37 @@ export function useApi() {
       return fetchJson('/schedules', {
         method: 'POST',
         body: JSON.stringify({ name, timeZone }),
+      });
+    },
+
+    async getSchedule(id: string): Promise<{ schedule: Schedule }> {
+      return fetchJson(`/schedules/${id}`);
+    },
+
+    async updateSchedule(id: string, updates: { name?: string; timeZone?: string }): Promise<{ schedule: Schedule }> {
+      return fetchJson(`/schedules/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(updates),
+      });
+    },
+
+    async addScheduleEntry(id: string, entry: ScheduleEntry): Promise<{ schedule: Schedule }> {
+      return fetchJson(`/schedules/${id}/entries`, {
+        method: 'POST',
+        body: JSON.stringify(entry),
+      });
+    },
+
+    async updateScheduleEntry(id: string, index: number, entry: ScheduleEntry): Promise<{ schedule: Schedule }> {
+      return fetchJson(`/schedules/${id}/entries/${index}`, {
+        method: 'PUT',
+        body: JSON.stringify(entry),
+      });
+    },
+
+    async deleteScheduleEntry(id: string, index: number): Promise<{ schedule: Schedule }> {
+      return fetchJson(`/schedules/${id}/entries/${index}`, {
+        method: 'DELETE',
       });
     },
     
