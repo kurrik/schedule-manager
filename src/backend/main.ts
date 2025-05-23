@@ -85,6 +85,7 @@ app.get('/api/schedules', scheduleHandlers.getSchedules);
 app.post('/api/schedules', scheduleHandlers.createSchedule);
 app.get('/api/schedules/:id', scheduleHandlers.getSchedule);
 app.put('/api/schedules/:id', scheduleHandlers.updateSchedule);
+app.delete('/api/schedules/:id', scheduleHandlers.deleteSchedule);
 app.post('/api/schedules/:id/entries', scheduleHandlers.addScheduleEntry);
 app.put('/api/schedules/:id/entries/:index', scheduleHandlers.updateScheduleEntry);
 app.delete('/api/schedules/:id/entries/:index', scheduleHandlers.deleteScheduleEntry);

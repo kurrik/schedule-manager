@@ -97,6 +97,12 @@ export function useApi() {
         method: 'DELETE',
       });
     },
+
+    async deleteSchedule(id: string): Promise<{ message: string }> {
+      return fetchJson(`/schedules/${id}`, {
+        method: 'DELETE',
+      });
+    },
     
     // Auth
     async getCurrentUser() {

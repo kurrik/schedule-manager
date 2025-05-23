@@ -322,11 +322,47 @@ export async function deleteScheduleEntry(c: Context<AppContext>) {
   }
 }
 
+/**
+ * Delete a schedule and all its entries
+ */
+export async function deleteSchedule(c: Context<AppContext>) {
+  const user = c.get('user');
+  if (!user) {
+    return c.json({ error: 'Not authenticated' }, 401);
+  }
+
+  const { id } = c.req.param();
+  if (!id) {
+    return c.json({ error: 'Schedule ID is required' }, 400);
+  }
+
+  const uow = new KVUnitOfWork(c.env.KV);
+  try {
+    const schedule = await uow.schedules.findById(id);
+    if (!schedule) {
+      return c.json({ error: 'Schedule not found' }, 404);
+    }
+
+    // Only the owner can delete the schedule
+    if (schedule.ownerId !== user.id) {
+      return c.json({ error: 'Only the schedule owner can delete this schedule' }, 403);
+    }
+
+    await uow.schedules.delete(id);
+    await uow.commit();
+    return c.json({ message: 'Schedule deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting schedule:', error);
+    return c.json({ error: 'Failed to delete schedule' }, 500);
+  }
+}
+
 export const scheduleHandlers = {
   getSchedules,
   createSchedule,
   getSchedule,
   updateSchedule,
+  deleteSchedule,
   addScheduleEntry,
   updateScheduleEntry,
   deleteScheduleEntry,

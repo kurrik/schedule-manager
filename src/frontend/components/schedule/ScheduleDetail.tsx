@@ -1,17 +1,19 @@
 import { Component, createSignal, onMount, Show, For } from 'solid-js';
-import { useParams, A } from '@solidjs/router';
+import { useParams, A, useNavigate } from '@solidjs/router';
 import { useApi, type Schedule, type ScheduleEntry } from '../../services/api';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 const ScheduleDetail: Component = () => {
   const params = useParams();
   const api = useApi();
+  const navigate = useNavigate();
   const [schedule, setSchedule] = createSignal<Schedule | null>(null);
   const [isLoading, setIsLoading] = createSignal(true);
   const [error, setError] = createSignal<string | null>(null);
   const [showAddEntryModal, setShowAddEntryModal] = createSignal(false);
   const [showEditModal, setShowEditModal] = createSignal(false);
   const [showEditScheduleModal, setShowEditScheduleModal] = createSignal(false);
+  const [showDeleteScheduleModal, setShowDeleteScheduleModal] = createSignal(false);
   const [editingEntryIndex, setEditingEntryIndex] = createSignal<number | null>(null);
   const [scheduleForm, setScheduleForm] = createSignal({
     name: '',
@@ -146,6 +148,22 @@ const ScheduleDetail: Component = () => {
     }
   };
 
+  const handleDeleteSchedule = async () => {
+    if (!schedule()) return;
+
+    try {
+      setIsLoading(true);
+      await api.deleteSchedule(schedule()!.id);
+      setShowDeleteScheduleModal(false);
+      navigate('/'); // Redirect to schedule list
+    } catch (err) {
+      console.error('Failed to delete schedule:', err);
+      setError('Failed to delete schedule');
+      setIsLoading(false);
+      setShowDeleteScheduleModal(false);
+    }
+  };
+
   // Group entries by day of week for the weekly grid
   const entriesByDay = () => {
     if (!schedule()) return Array(7).fill([]);
@@ -178,6 +196,13 @@ const ScheduleDetail: Component = () => {
                   title="Edit schedule"
                 >
                   ✏️
+                </button>
+                <button 
+                  class="btn btn-ghost btn-sm text-error" 
+                  onClick={() => setShowDeleteScheduleModal(true)}
+                  title="Delete schedule"
+                >
+                  🗑️
                 </button>
               </div>
               <p class="text-gray-600">Time Zone: {schedule()?.timeZone}</p>
@@ -413,6 +438,40 @@ const ScheduleDetail: Component = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </Show>
+
+        {/* Delete Schedule Modal */}
+        <Show when={showDeleteScheduleModal()}>
+          <div class="modal modal-open">
+            <div class="modal-box">
+              <h2 class="font-bold text-lg text-error mb-4">Delete Schedule</h2>
+              <p class="mb-4">
+                Are you sure you want to delete "<strong>{schedule()?.name}</strong>"? 
+                This will permanently delete the schedule and all its entries. This action cannot be undone.
+              </p>
+              <div class="bg-warning/20 p-3 rounded mb-4">
+                <p class="text-sm">
+                  ⚠️ This will also invalidate the iCal feed URL, so any calendar subscriptions will stop working.
+                </p>
+              </div>
+              <div class="flex justify-end">
+                <button 
+                  type="button" 
+                  class="btn btn-ghost mr-2" 
+                  onClick={() => setShowDeleteScheduleModal(false)}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="button" 
+                  class="btn btn-error" 
+                  onClick={handleDeleteSchedule}
+                >
+                  Delete Schedule
+                </button>
+              </div>
             </div>
           </div>
         </Show>
