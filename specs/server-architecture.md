@@ -1,138 +1,260 @@
 # Server Architecture & Implementation Plan
 
 ## Overview
-This document details the technical architecture and implementation steps for the Schedule Manager Cloudflare Worker app, covering:
+This document details the technical architecture and implementation for the Schedule Manager Cloudflare Worker app, covering:
 - Project structure
 - Hono framework setup
 - hono-simple-google-auth integration
-- Cloudflare KV usage
-- Static asset serving
+- Cloudflare D1 database and KV storage
+- Domain-Driven Design architecture
+- Static asset serving via Cloudflare Assets
 - Routing and authentication
 - TypeScript and CI configuration
-- Step-by-step implementation plan
+- Testing and deployment
 
 ---
 
 ## 1. Project Structure
-- **Single repository/folder** containing both backend (Worker) and frontend (SPA assets).
+- **Monorepo** containing both backend (Cloudflare Worker) and frontend (SolidJS SPA).
 - **Wrangler** for local development and deployment.
 - **TypeScript** with strict typing enabled.
-- **Environment secrets** managed via `wrangler secret`.
+- **Domain-Driven Design** architecture with clear separation of concerns.
+- **Vite** for building both frontend and backend assets.
 
-**Example Directory Layout:**
+**Current Directory Layout:**
 ```
 /
-  src/           # Worker code (TypeScript)
-  public/        # Frontend static assets (built SPA)
+  src/
+    backend/
+      api/                     # API route handlers
+      domain/
+        models/                # Domain entities (User, Schedule, etc.)
+        repositories/          # Repository interfaces
+        services/              # Domain services (iCal, etc.)
+      infrastructure/
+        repositories/          # D1 repository implementations
+        unit-of-work/          # Unit of Work pattern
+      main.ts                  # Worker entry point
+    frontend/
+      components/              # SolidJS components
+      services/                # Frontend API clients
+      App.tsx                  # Main app component
+      index.tsx               # Frontend entry point
+  public/                      # Static assets (served by Cloudflare Assets)
+  specs/                       # Documentation and specifications
+  schema.sql                   # D1 database schema
   package.json
   tsconfig.json
-  wrangler.toml
+  wrangler.jsonc              # Cloudflare Worker configuration
+  vite.config.ts              # Vite build configuration
 ```
 
 ---
 
 ## 2. Hono Framework Setup
-- Install dependencies:
-  - `hono`
-  - `hono-simple-google-auth`
-  - `@cloudflare/kv-asset-handler` (if needed for static assets)
-  - `@cloudflare/workers-types` (for TypeScript)
-- Initialize Hono app in `src/index.ts`:
+- **Core dependencies:**
+  - `hono` - Web framework for Cloudflare Workers
+  - `hono-simple-google-auth` - Google OAuth authentication
+  - `@cloudflare/workers-types` - TypeScript definitions
+  - `ical-generator` - iCal feed generation
+  - `date-fns` - Date utilities for timezone handling
+
+- **Worker entry point** in `src/backend/main.ts`:
   ```ts
   import { Hono } from 'hono';
-  import { googleAuth } from 'hono-simple-google-auth';
-  // ...other imports
-
-  const app = new Hono<{ Bindings: Env }>();
+  import { honoSimpleGoogleAuth } from 'hono-simple-google-auth';
+  
+  export type Env = GoogleAuthEnv & {
+    Bindings: {
+      KV: KVNamespace;    // Sessions only
+      DB: D1Database;     // Main data storage
+      ASSETS: Fetcher;    // Static asset serving
+      // ... other environment variables
+    };
+  };
+  
+  const app = new Hono<AppContext>();
   ```
-- Minimal middleware: only hono-simple-google-auth, static serving, and error handling as needed.
+- **Middleware stack:** Google Auth, user upsertion, static asset serving
 
 ---
 
 ## 3. Authentication & Session Management
-- Use **hono-simple-google-auth** for Google sign-in only.
-- Store session tokens in **signed cookies**.
-- Store session data in **Cloudflare KV** (single namespace for all data).
-- Configure secrets (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SESSION_SECRET`) via `wrangler secret`.
-- All `/api` endpoints require authentication middleware, except for public `/ical` endpoints.
+- **Google OAuth** via `hono-simple-google-auth` for authentication only.
+- **Session storage:** Cloudflare KV for session tokens and data.
+- **User upsertion:** Automatic user creation/update on successful sign-in.
+- **Environment variables:** 
+  - `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` (OAuth credentials)
+  - Session secrets managed by hono-simple-google-auth
+- **Middleware flow:**
+  1. Google Auth middleware verifies session
+  2. User upsertion middleware creates/updates user in D1
+  3. User entity attached to request context for all `/api` routes
+- **Public endpoints:** `/ical/*` routes are public (no authentication required)
 
 ---
 
-## 4. Data Storage (Cloudflare KV)
-- Use a **single KV namespace** for all data (users, schedules, tasks, sessions).
-- Key structure example:
-  - `user:<id>`
-  - `schedule:<id>`
-  - `task:<id>`
-  - `session:<token>`
-- Store all structured data as JSON.
+## 4. Data Storage Architecture
+
+### Cloudflare D1 (Primary Data Storage)
+- **SQL Database** for all structured data (users, schedules, entries, overrides).
+- **Schema-defined relationships** with foreign keys and constraints.
+- **Indexed queries** for efficient lookups and joins.
+- **Batch operations** for atomic updates (schedule + entries + shares).
+
+**Core Tables:**
+- `users` - User profiles from Google OAuth
+- `schedules` - Schedule metadata (owner, name, timezone, ical_url)
+- `schedule_shares` - Many-to-many sharing relationships
+- `schedule_entries` - Recurring schedule entries (tasks)
+- `schedule_overrides` - Future: one-time modifications/exceptions
+
+### Cloudflare KV (Session Storage Only)
+- **Session tokens and data** for authentication.
+- **Managed by hono-simple-google-auth** (no direct application access).
+
+### Repository Pattern
+- **Domain repositories** define data access interfaces.
+- **D1 repositories** implement domain interfaces using SQL.
+- **Unit of Work** pattern coordinates multiple repository operations.
 
 ---
 
 ## 5. Static Asset Serving
-- Bundle frontend static assets (HTML, JS, CSS, etc.) with the Worker at build time.
-- Serve static files from `/public`.
-- All unmatched routes (not `/api` or `/ical`) serve `index.html` for SPA routing.
+- **Cloudflare Assets** serves the SolidJS frontend application.
+- **Vite builds** frontend assets into `public/` directory.
+- **Single-page application mode** configured in `wrangler.jsonc`.
+- **Fallback routing:** All unmatched routes (not `/api`, `/auth`, or `/ical`) serve `index.html` for client-side routing.
+- **Asset optimization:** Automatic minification, compression, and CDN delivery.
 
 ---
 
 ## 6. Routing
-- **/api/** – All authenticated API endpoints (CRUD for schedules, tasks, etc.)
-- **/ical/** – Public iCal feed endpoints
-- **Static** – All other requests serve static assets or `index.html`
+
+### Authentication Routes
+- `GET/POST /auth/*` - Google OAuth sign-in/callback/sign-out
+
+### API Routes (Authenticated)
+- `GET /api/me` - Current user info
+- `GET /api/schedules` - List user's schedules
+- `POST /api/schedules` - Create new schedule
+- `GET /api/schedules/:id` - Get schedule details
+- `PUT /api/schedules/:id` - Update schedule metadata
+- `DELETE /api/schedules/:id` - Delete schedule (owner only)
+- `POST /api/schedules/:id/entries` - Add schedule entry
+- `PUT /api/schedules/:id/entries/:index` - Update schedule entry
+- `DELETE /api/schedules/:id/entries/:index` - Delete schedule entry
+- `GET /api/schedules/:scheduleId/overrides` - Get schedule overrides
+- `POST /api/schedules/:scheduleId/overrides` - Create override
+- `PUT /api/overrides/:overrideId` - Update override
+- `DELETE /api/overrides/:overrideId` - Delete override
+
+### Public Routes
+- `GET /ical/:icalUrl` - Public iCal feed (no authentication)
+
+### Static Assets
+- `GET /*` - All other routes serve frontend SPA via Cloudflare Assets
 
 ---
 
-## 7. TypeScript & CI
-- `tsconfig.json` with `strict: true` and all strictness flags enabled.
-- CI/linting (e.g., ESLint, type-check) blocks merges on type errors.
+## 7. TypeScript & Build System
+- **Strict TypeScript** configuration with full type safety.
+- **Multiple tsconfig files** for different build targets:
+  - `tsconfig.json` - Base configuration
+  - `tsconfig.app.json` - Frontend application
+  - `tsconfig.node.json` - Build tooling
+  - `tsconfig.worker.json` - Worker backend
+- **Vite** for unified frontend and backend building.
+- **NPM scripts:**
+  - `npm run dev` - Local development server
+  - `npm run build` - Production build
+  - `npm run typecheck` - TypeScript validation
+  - `npm run lint` - ESLint validation
+  - `npm run deploy` - Build and deploy to Cloudflare
 
 ---
 
-## 8. Implementation Steps
+## 8. Domain-Driven Design Architecture
 
-1. **Initialize project**
-   - `wrangler init` (choose TypeScript template)
-   - Set up `src/`, `public/`, `package.json`, `tsconfig.json`, `wrangler.toml`
-2. **Install dependencies**
-   - `npm install hono hono-simple-google-auth @cloudflare/kv-asset-handler @cloudflare/workers-types`
-3. **Configure TypeScript**
-   - Enable strict mode in `tsconfig.json`
-4. **Set up environment secrets**
-   - `wrangler secret put GOOGLE_CLIENT_ID`
-   - `wrangler secret put GOOGLE_CLIENT_SECRET`
-   - `wrangler secret put SESSION_SECRET`
-5. **Set up Cloudflare KV**
-   - Add KV binding to `wrangler.toml`
-6. **Implement authentication**
-   - Integrate `hono-simple-google-auth` in `src/index.ts`
-   - Use signed cookies and store session data in KV
-7. **Implement routing**
-   - `/api/*` endpoints with authentication middleware
-   - `/ical/*` endpoints (public)
-   - Static asset serving and SPA fallback
-8. **Implement data storage logic**
-   - CRUD handlers for users, schedules, tasks in KV
-   - Key structure and JSON serialization
-9. **Frontend integration**
-   - Build SPA assets into `public/`
-   - Ensure correct static asset serving from Worker
-10. **Testing**
-    - Write unit and integration tests (authentication, routing, storage)
-    - Manual QA for sign-in, schedule/task CRUD, iCal feeds, and SPA navigation
-11. **Deployment**
-    - Use `wrangler publish` to deploy to Cloudflare Workers
+### Domain Layer
+- **Entities:** `User`, `Schedule`, `ScheduleEntry`, `ScheduleOverride`
+- **Value Objects:** Embedded within entities for type safety
+- **Repository Interfaces:** Define data access contracts
+- **Domain Services:** `ICalService` for feed generation, `CalendarMaterializationService` for event processing
+
+### Infrastructure Layer
+- **D1 Repositories:** Implement domain repositories using SQL
+- **Unit of Work:** Coordinates multi-repository operations
+- **External Services:** Google OAuth, timezone handling
+
+### Application Layer
+- **API Handlers:** Route handling and request/response transformation
+- **Middleware:** Authentication, user upsertion, error handling
+
+### Benefits
+- **Clear separation of concerns** between business logic and infrastructure
+- **Testable domain logic** independent of database implementation  
+- **Type-safe data access** with repository pattern
+- **Scalable architecture** that can grow with requirements
 
 ---
 
-## 9. Developer Notes
-- Keep middleware minimal; add CORS, logging, rate limiting only if needed.
-- All secrets and sensitive data handled via Wrangler secrets.
-- SPA routing: all unknown paths serve `index.html`.
-- Only Google sign-in is supported for authentication.
-- All data (sessions, users, schedules, tasks) in a single KV namespace.
-- All code in a single repo/folder for simplicity.
+## 9. Development & Deployment
+
+### Local Development
+```bash
+npm run dev          # Start local development server
+npm run typecheck    # Validate TypeScript
+npm run lint         # Check code style
+```
+
+### Database Setup
+```bash
+# Create D1 database
+npx wrangler d1 create schedule-manager
+
+# Apply schema (local and remote)
+npx wrangler d1 execute schedule-manager --local --file=./schema.sql
+npx wrangler d1 execute schedule-manager --remote --file=./schema.sql
+```
+
+### Production Deployment
+```bash
+npm run deploy       # Build and deploy to Cloudflare Workers
+```
+
+### Environment Configuration
+- Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `wrangler.jsonc`
+- Configure D1 and KV bindings in `wrangler.jsonc`
+- Optional: Set `ROOT_DOMAIN` for production iCal URLs
 
 ---
 
-This architecture and plan are ready for immediate implementation. For questions, refer to the Q&A or contact the product owner.
+## 10. Key Implementation Details
+
+### Performance Optimizations
+- **Indexed D1 queries** for fast schedule and user lookups
+- **Batch operations** for atomic schedule updates (schedule + entries + shares)
+- **iCal feed caching** with 5-minute cache headers
+- **Minimal middleware stack** for fast request processing
+
+### Security Considerations
+- **Unguessable iCal URLs** using crypto.randomUUID()
+- **Access control** enforced at domain level (schedule.isAccessibleBy())
+- **Session management** handled securely by hono-simple-google-auth
+- **SQL injection prevention** through prepared statements
+
+### Scalability Features
+- **Domain-driven architecture** enables easy feature additions
+- **Repository pattern** allows swapping data storage implementations
+- **Cloudflare global edge** for worldwide performance
+- **Override system** ready for future schedule exceptions/modifications
+
+### Monitoring & Debugging
+- **Cloudflare observability** enabled in wrangler.jsonc
+- **Console logging** for development debugging
+- **Structured error handling** with proper HTTP status codes
+
+---
+
+This architecture documentation reflects the current implementation. For setup instructions, see `D1_SETUP.md`. For questions about domain logic, refer to the domain model specifications.
