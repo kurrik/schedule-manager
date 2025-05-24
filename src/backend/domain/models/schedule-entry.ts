@@ -1,4 +1,5 @@
 export interface ScheduleEntryProps {
+  id?: string; // Optional for new entries, required for existing entries
   name: string;
   dayOfWeek: number; // 0-6 where 0 is Sunday
   startTimeMinutes: number; // Minutes since midnight (0-1439)
@@ -43,8 +44,13 @@ export class ScheduleEntry {
     return this.props.durationMinutes;
   }
 
+  get id(): string | undefined {
+    return this.props.id;
+  }
+
   toJSON() {
     return {
+      id: this.id,
       name: this.name,
       dayOfWeek: this.dayOfWeek,
       startTimeMinutes: this.startTimeMinutes,

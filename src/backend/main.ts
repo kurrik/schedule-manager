@@ -2,6 +2,7 @@ import { Hono, type Context, type Next } from 'hono';
 import { honoSimpleGoogleAuth, createKVSessionStore, type GoogleAuthEnv } from 'hono-simple-google-auth';
 import type { KVNamespace, Fetcher, D1Database } from '@cloudflare/workers-types';
 import { scheduleHandlers } from './api/schedule-handlers';
+import { overrideHandlers } from './api/override-handlers';
 import { ICalService } from './domain/services/ical-service';
 
 export type Env = GoogleAuthEnv & {
@@ -90,6 +91,13 @@ app.delete('/api/schedules/:id', scheduleHandlers.deleteSchedule);
 app.post('/api/schedules/:id/entries', scheduleHandlers.addScheduleEntry);
 app.put('/api/schedules/:id/entries/:index', scheduleHandlers.updateScheduleEntry);
 app.delete('/api/schedules/:id/entries/:index', scheduleHandlers.deleteScheduleEntry);
+
+// Override routes
+app.get('/api/schedules/:scheduleId/overrides', overrideHandlers.getScheduleOverrides);
+app.get('/api/schedules/:scheduleId/overrides/range', overrideHandlers.getScheduleOverridesInRange);
+app.post('/api/schedules/:scheduleId/overrides', overrideHandlers.createOverride);
+app.put('/api/overrides/:overrideId', overrideHandlers.updateOverride);
+app.delete('/api/overrides/:overrideId', overrideHandlers.deleteOverride);
 
 // --- Public iCal Feed Route ---
 app.get('/ical/:icalUrl', async (c) => {

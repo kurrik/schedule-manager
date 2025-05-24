@@ -146,13 +146,14 @@ export class D1ScheduleRepository implements IScheduleRepository {
 
     // Insert entries
     for (const entry of schedule.entries) {
+      const entryId = entry.id || crypto.randomUUID();
       batch.push(
         this.db.prepare(`
           INSERT INTO schedule_entries 
           (id, schedule_id, name, day_of_week, start_time_minutes, duration_minutes)
           VALUES (?, ?, ?, ?, ?, ?)
         `).bind(
-          crypto.randomUUID(),
+          entryId,
           schedule.id,
           entry.name,
           entry.dayOfWeek,
@@ -193,6 +194,7 @@ export class D1ScheduleRepository implements IScheduleRepository {
     shareRows: ScheduleShareRow[]
   ): Schedule {
     const entries = entryRows.map(row => new ScheduleEntry({
+      id: row.id,
       name: row.name,
       dayOfWeek: row.day_of_week,
       startTimeMinutes: row.start_time_minutes,

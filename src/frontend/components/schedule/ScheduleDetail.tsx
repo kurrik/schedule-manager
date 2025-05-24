@@ -1,6 +1,6 @@
-import { Component, createSignal, onMount, onCleanup, Show, For } from 'solid-js';
+import { Component, createSignal, onMount, onCleanup, Show, For, createEffect } from 'solid-js';
 import { useParams, A, useNavigate } from '@solidjs/router';
-import { useApi, type Schedule, type ScheduleEntry } from '../../services/api';
+import { useApi, type Schedule, type ScheduleEntry, type ScheduleOverride, type MaterializedEntry } from '../../services/api';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 const ScheduleDetail: Component = () => {
@@ -14,18 +14,34 @@ const ScheduleDetail: Component = () => {
   const [showEditModal, setShowEditModal] = createSignal(false);
   const [showEditScheduleModal, setShowEditScheduleModal] = createSignal(false);
   const [showDeleteScheduleModal, setShowDeleteScheduleModal] = createSignal(false);
-  const [editingEntryIndex, setEditingEntryIndex] = createSignal<number | null>(null);
+  const [editingEntryId, setEditingEntryId] = createSignal<string | null>(null);
   const [scheduleForm, setScheduleForm] = createSignal({
     name: '',
     timeZone: '',
   });
   const [currentViewDate, setCurrentViewDate] = createSignal(new Date());
+  const [overrides, setOverrides] = createSignal<ScheduleOverride[]>([]);
+  const [showAddOneTimeModal, setShowAddOneTimeModal] = createSignal(false);
+  const [showEntryActionModal, setShowEntryActionModal] = createSignal(false);
+  const [selectedDate, setSelectedDate] = createSignal<string>('');
+  const [selectedEntry, setSelectedEntry] = createSignal<MaterializedEntry | null>(null);
   const [entryForm, setEntryForm] = createSignal<ScheduleEntry>({
     name: '',
     dayOfWeek: 0,
     startTimeMinutes: 540, // 9:00 AM
     durationMinutes: 60,
   });
+  const [oneTimeEntryForm, setOneTimeEntryForm] = createSignal({
+    name: '',
+    startTimeMinutes: 540, // 9:00 AM
+    durationMinutes: 60,
+  });
+  const [modifyEntryForm, setModifyEntryForm] = createSignal({
+    name: '',
+    startTimeMinutes: 540,
+    durationMinutes: 60,
+  });
+  const [showModifyModal, setShowModifyModal] = createSignal(false);
 
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -43,6 +59,28 @@ const ScheduleDetail: Component = () => {
     }
   };
 
+  const loadOverridesForMonth = async () => {
+    if (!schedule()) return;
+
+    const viewDate = currentViewDate();
+    const year = viewDate.getFullYear();
+    const month = viewDate.getMonth();
+    
+    // Get first day of month and last day of month
+    const startDate = new Date(year, month, 1);
+    const endDate = new Date(year, month + 1, 0);
+    
+    const startDateStr = startDate.toISOString().split('T')[0];
+    const endDateStr = endDate.toISOString().split('T')[0];
+
+    try {
+      const data = await api.getScheduleOverridesInRange(schedule()!.id, startDateStr, endDateStr);
+      setOverrides(data.overrides);
+    } catch (err) {
+      console.error('Failed to load overrides:', err);
+    }
+  };
+
   // Handle ESC key to close modals
   const handleKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'Escape') {
@@ -50,11 +88,18 @@ const ScheduleDetail: Component = () => {
         setShowAddEntryModal(false);
       } else if (showEditModal()) {
         setShowEditModal(false);
-        setEditingEntryIndex(null);
+        setEditingEntryId(null);
       } else if (showEditScheduleModal()) {
         setShowEditScheduleModal(false);
       } else if (showDeleteScheduleModal()) {
         setShowDeleteScheduleModal(false);
+      } else if (showAddOneTimeModal()) {
+        setShowAddOneTimeModal(false);
+      } else if (showEntryActionModal()) {
+        setShowEntryActionModal(false);
+        setSelectedEntry(null);
+      } else if (showModifyModal()) {
+        setShowModifyModal(false);
       }
     }
   };
@@ -62,6 +107,18 @@ const ScheduleDetail: Component = () => {
   onMount(() => {
     loadSchedule();
     document.addEventListener('keydown', handleKeyDown);
+  });
+
+  // Load overrides when schedule changes or month changes
+  createEffect(() => {
+    if (schedule()) {
+      loadOverridesForMonth();
+    }
+  });
+
+  createEffect(() => {
+    currentViewDate(); // Re-run when month changes
+    loadOverridesForMonth();
   });
 
   onCleanup(() => {
@@ -101,13 +158,16 @@ const ScheduleDetail: Component = () => {
 
   const handleEditEntry = async (e: Event) => {
     e.preventDefault();
-    if (!schedule() || editingEntryIndex() === null) return;
+    if (!schedule() || !editingEntryId()) return;
+
+    const entryIndex = schedule()!.entries.findIndex(entry => entry.id === editingEntryId());
+    if (entryIndex === -1) return;
 
     try {
       setIsLoading(true);
-      await api.updateScheduleEntry(schedule()!.id, editingEntryIndex()!, entryForm());
+      await api.updateScheduleEntry(schedule()!.id, entryIndex, entryForm());
       setShowEditModal(false);
-      setEditingEntryIndex(null);
+      setEditingEntryId(null);
       await loadSchedule();
     } catch (err) {
       console.error('Failed to update entry:', err);
@@ -116,12 +176,17 @@ const ScheduleDetail: Component = () => {
     }
   };
 
-  const handleDeleteEntry = async (index: number) => {
-    if (!schedule() || !confirm('Are you sure you want to delete this entry?')) return;
+  const handleDeleteEntry = async () => {
+    if (!schedule() || !editingEntryId() || !confirm('Are you sure you want to delete this entry?')) return;
+
+    const entryIndex = schedule()!.entries.findIndex(entry => entry.id === editingEntryId());
+    if (entryIndex === -1) return;
 
     try {
       setIsLoading(true);
-      await api.deleteScheduleEntry(schedule()!.id, index);
+      await api.deleteScheduleEntry(schedule()!.id, entryIndex);
+      setShowEditModal(false);
+      setEditingEntryId(null);
       await loadSchedule();
     } catch (err) {
       console.error('Failed to delete entry:', err);
@@ -130,10 +195,12 @@ const ScheduleDetail: Component = () => {
     }
   };
 
-  const openEditModal = (index: number) => {
-    const entry = schedule()!.entries[index];
+  const openEditModal = (entryId: string) => {
+    const entry = schedule()!.entries.find(e => e.id === entryId);
+    if (!entry) return;
+    
     setEntryForm({ ...entry });
-    setEditingEntryIndex(index);
+    setEditingEntryId(entryId);
     setShowEditModal(true);
   };
 
@@ -193,8 +260,8 @@ const ScheduleDetail: Component = () => {
     if (!schedule()) return Array(7).fill([]);
     
     const grouped = Array(7).fill(null).map(() => []);
-    schedule()!.entries.forEach((entry, index) => {
-      grouped[entry.dayOfWeek].push({ ...entry, index });
+    schedule()!.entries.forEach((entry) => {
+      grouped[entry.dayOfWeek].push(entry);
     });
     return grouped;
   };
@@ -212,6 +279,92 @@ const ScheduleDetail: Component = () => {
       newDate.setMonth(newDate.getMonth() + 1);
     }
     setCurrentViewDate(newDate);
+  };
+
+  // Materialize entries for a specific date (applying overrides)
+  const materializeEntriesForDate = (date: Date): MaterializedEntry[] => {
+    if (!schedule()) return [];
+
+    const dateStr = date.toISOString().split('T')[0];
+    const dayOfWeek = date.getDay();
+    
+    // Get recurring entries for this day of week
+    const recurringEntries = schedule()!.entries
+      .filter(entry => entry.dayOfWeek === dayOfWeek);
+
+    // Get overrides for this specific date
+    const dateOverrides = overrides().filter(override => override.overrideDate === dateStr);
+
+    const materializedEntries: MaterializedEntry[] = [];
+
+    // Process recurring entries, applying modifications and skips
+    for (const entry of recurringEntries) {
+      if (!entry.id) continue; // Skip entries without IDs
+      
+      // Check if this entry is skipped
+      const skipOverride = dateOverrides.find(
+        override => override.overrideType === 'SKIP' && override.baseEntryId === entry.id
+      );
+
+      if (skipOverride) {
+        continue; // Skip this entry
+      }
+
+      // Check if this entry is modified
+      const modifyOverride = dateOverrides.find(
+        override => override.overrideType === 'MODIFY' && override.baseEntryId === entry.id
+      );
+
+      if (modifyOverride && modifyOverride.overrideData) {
+        // Apply modifications
+        const modifyData = modifyOverride.overrideData as any;
+        materializedEntries.push({
+          id: modifyOverride.id,
+          name: modifyData.name ?? entry.name,
+          dayOfWeek: entry.dayOfWeek,
+          startTimeMinutes: modifyData.startTimeMinutes ?? entry.startTimeMinutes,
+          durationMinutes: modifyData.durationMinutes ?? entry.durationMinutes,
+          date: dateStr,
+          isOverride: true,
+          overrideType: 'MODIFY',
+          baseEntryId: entry.id,
+        });
+      } else {
+        // Use original recurring entry
+        materializedEntries.push({
+          id: entry.id,
+          name: entry.name,
+          dayOfWeek: entry.dayOfWeek,
+          startTimeMinutes: entry.startTimeMinutes,
+          durationMinutes: entry.durationMinutes,
+          date: dateStr,
+          isOverride: false,
+        });
+      }
+    }
+
+    // Add one-time entries
+    const oneTimeOverrides = dateOverrides.filter(override => override.overrideType === 'ONE_TIME');
+    for (const override of oneTimeOverrides) {
+      if (override.overrideData) {
+        const oneTimeData = override.overrideData as any;
+        materializedEntries.push({
+          id: override.id,
+          name: oneTimeData.name,
+          dayOfWeek: dayOfWeek,
+          startTimeMinutes: oneTimeData.startTimeMinutes,
+          durationMinutes: oneTimeData.durationMinutes,
+          date: dateStr,
+          isOverride: true,
+          overrideType: 'ONE_TIME',
+        });
+      }
+    }
+
+    // Sort by start time
+    materializedEntries.sort((a, b) => a.startTimeMinutes - b.startTimeMinutes);
+
+    return materializedEntries;
   };
 
   // Generate calendar days for the current month view
@@ -239,21 +392,213 @@ const ScheduleDetail: Component = () => {
       currentDate.setDate(startDate.getDate() + i);
       
       const isCurrentMonth = currentDate.getMonth() === month;
-      const dayOfWeek = currentDate.getDay();
-      
-      // Find entries for this day of week
-      const dayEntries = schedule()?.entries.filter(entry => entry.dayOfWeek === dayOfWeek) || [];
+      const materializedEntries = materializeEntriesForDate(currentDate);
       
       days.push({
         date: currentDate,
         day: currentDate.getDate(),
         isCurrentMonth,
-        dayOfWeek,
-        entries: dayEntries,
+        entries: materializedEntries,
       });
     }
     
     return days;
+  };
+
+  const handleCalendarDateClick = (date: Date) => {
+    const dateStr = date.toISOString().split('T')[0];
+    openAddOneTimeModal(dateStr);
+  };
+
+  const handleEntryClick = (entry: MaterializedEntry, e: Event) => {
+    e.stopPropagation(); // Prevent day click from firing
+    setSelectedEntry(entry);
+    setSelectedDate(entry.date);
+    setShowEntryActionModal(true);
+  };
+
+  const handleCreateOneTimeEntry = async (e: Event) => {
+    e.preventDefault();
+    if (!schedule()) return;
+
+    try {
+      setIsLoading(true);
+      const overrideData = {
+        overrideType: 'ONE_TIME' as const,
+        overrideDate: selectedDate(),
+        overrideData: oneTimeEntryForm(),
+      };
+      
+      await api.createScheduleOverride(schedule()!.id, overrideData);
+      setShowAddOneTimeModal(false);
+      setOneTimeEntryForm({
+        name: '',
+        startTimeMinutes: 540,
+        durationMinutes: 60,
+      });
+      await loadOverridesForMonth();
+    } catch (err) {
+      console.error('Failed to create one-time entry:', err);
+      setError('Failed to create one-time entry');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSkipEntry = async () => {
+    const entry = selectedEntry();
+    if (!schedule() || !entry || entry.isOverride) return;
+
+    try {
+      setIsLoading(true);
+      const overrideData = {
+        overrideType: 'SKIP' as const,
+        overrideDate: selectedDate(),
+        baseEntryId: entry.baseEntryId || entry.id,
+      };
+      
+      await api.createScheduleOverride(schedule()!.id, overrideData);
+      setShowEntryActionModal(false);
+      setSelectedEntry(null);
+      await loadOverridesForMonth();
+    } catch (err) {
+      console.error('Failed to skip entry:', err);
+      setError('Failed to skip entry');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleModifyEntry = () => {
+    const entry = selectedEntry();
+    if (!entry) return;
+
+    setModifyEntryForm({
+      name: entry.name,
+      startTimeMinutes: entry.startTimeMinutes,
+      durationMinutes: entry.durationMinutes,
+    });
+    setShowEntryActionModal(false);
+    setShowModifyModal(true);
+  };
+
+  const handleSaveModifiedEntry = async (e: Event) => {
+    e.preventDefault();
+    const entry = selectedEntry();
+    if (!schedule() || !entry) return;
+
+    try {
+      setIsLoading(true);
+      const overrideData = {
+        overrideType: 'MODIFY' as const,
+        overrideDate: selectedDate(),
+        baseEntryId: entry.baseEntryId || entry.id,
+        overrideData: modifyEntryForm(),
+      };
+      
+      await api.createScheduleOverride(schedule()!.id, overrideData);
+      setShowModifyModal(false);
+      setSelectedEntry(null);
+      await loadOverridesForMonth();
+    } catch (err) {
+      console.error('Failed to modify entry:', err);
+      setError('Failed to modify entry');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEditOverride = () => {
+    const entry = selectedEntry();
+    if (!entry || !entry.isOverride) return;
+
+    if (entry.overrideType === 'MODIFY') {
+      setModifyEntryForm({
+        name: entry.name,
+        startTimeMinutes: entry.startTimeMinutes,
+        durationMinutes: entry.durationMinutes,
+      });
+      setShowEntryActionModal(false);
+      setShowModifyModal(true);
+    } else if (entry.overrideType === 'ONE_TIME') {
+      setOneTimeEntryForm({
+        name: entry.name,
+        startTimeMinutes: entry.startTimeMinutes,
+        durationMinutes: entry.durationMinutes,
+      });
+      setShowEntryActionModal(false);
+      setShowAddOneTimeModal(true);
+    }
+  };
+
+  const handleUpdateOverride = async (e: Event) => {
+    e.preventDefault();
+    const entry = selectedEntry();
+    if (!entry || !entry.isOverride) return;
+
+    try {
+      setIsLoading(true);
+      let overrideData;
+      
+      if (entry.overrideType === 'MODIFY') {
+        overrideData = {
+          overrideType: 'MODIFY' as const,
+          overrideDate: selectedDate(),
+          baseEntryId: entry.baseEntryId,
+          overrideData: modifyEntryForm(),
+        };
+      } else if (entry.overrideType === 'ONE_TIME') {
+        overrideData = {
+          overrideType: 'ONE_TIME' as const,
+          overrideDate: selectedDate(),
+          overrideData: oneTimeEntryForm(),
+        };
+      }
+      
+      if (overrideData) {
+        await api.updateScheduleOverride(schedule()!.id, entry.id, overrideData);
+        if (entry.overrideType === 'MODIFY') {
+          setShowModifyModal(false);
+        } else {
+          setShowAddOneTimeModal(false);
+        }
+        setSelectedEntry(null);
+        await loadOverridesForMonth();
+      }
+    } catch (err) {
+      console.error('Failed to update override:', err);
+      setError('Failed to update override');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRemoveOverride = async () => {
+    const entry = selectedEntry();
+    if (!entry || !entry.isOverride || !confirm('Are you sure you want to remove this override?')) return;
+
+    try {
+      setIsLoading(true);
+      await api.deleteScheduleOverride(schedule()!.id, entry.id);
+      setShowEntryActionModal(false);
+      setSelectedEntry(null);
+      await loadOverridesForMonth();
+    } catch (err) {
+      console.error('Failed to remove override:', err);
+      setError('Failed to remove override');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const openAddOneTimeModal = (date: string) => {
+    setSelectedDate(date);
+    setOneTimeEntryForm({
+      name: '',
+      startTimeMinutes: 540,
+      durationMinutes: 60,
+    });
+    setShowAddOneTimeModal(true);
   };
 
   return (
@@ -297,10 +642,10 @@ const ScheduleDetail: Component = () => {
                 <h3 class="font-semibold text-center mb-3">{dayName}</h3>
                 <div class="space-y-2 min-h-20">
                   <For each={entriesByDay()[dayIndex()]}>
-                    {(entry: any) => (
+                    {(entry: ScheduleEntry) => (
                       <div 
                         class="bg-primary text-primary-content p-2 rounded cursor-pointer hover:bg-primary-focus"
-                        onClick={() => openEditModal(entry.index)}
+                        onClick={() => openEditModal(entry.id!)}
                       >
                         <div class="text-sm font-medium">{entry.name}</div>
                         <div class="text-xs opacity-90">
@@ -379,10 +724,13 @@ const ScheduleDetail: Component = () => {
 
               {/* Calendar days */}
               <For each={calendarDays()}>
-                {(day) => (
-                  <div class={`min-h-24 p-1 border border-base-300 ${
-                    day.isCurrentMonth ? 'bg-base-100' : 'bg-base-300/50'
-                  }`}>
+                {(day: any) => (
+                  <div 
+                    class={`min-h-24 p-1 border border-base-300 cursor-pointer hover:bg-base-200 ${
+                      day.isCurrentMonth ? 'bg-base-100' : 'bg-base-300/50'
+                    }`}
+                    onClick={() => handleCalendarDateClick(day.date)}
+                  >
                     <div class={`text-sm font-medium mb-1 ${
                       day.isCurrentMonth ? 'text-base-content' : 'text-base-content/50'
                     }`}>
@@ -390,9 +738,29 @@ const ScheduleDetail: Component = () => {
                     </div>
                     <div class="space-y-1">
                       <For each={day.entries}>
-                        {(entry) => (
-                          <div class="bg-primary text-primary-content text-xs p-1 rounded truncate">
-                            <div class="font-medium">{entry.name}</div>
+                        {(entry: MaterializedEntry) => (
+                          <div 
+                            class={`text-xs p-1 rounded truncate cursor-pointer hover:opacity-80 ${
+                              entry.isOverride 
+                                ? entry.overrideType === 'MODIFY' 
+                                  ? 'bg-warning text-warning-content' 
+                                  : entry.overrideType === 'ONE_TIME'
+                                  ? 'bg-info text-info-content'
+                                  : 'bg-primary text-primary-content'
+                                : 'bg-primary text-primary-content'
+                            }`}
+                            onClick={(e) => handleEntryClick(entry, e)}
+                            title={`Click to modify "${entry.name}"`}
+                          >
+                            <div class="font-medium">
+                              {entry.name}
+                              {entry.isOverride && (
+                                <span class="ml-1 text-xs opacity-75">
+                                  {entry.overrideType === 'MODIFY' ? '📝' : 
+                                   entry.overrideType === 'ONE_TIME' ? '⭐' : ''}
+                                </span>
+                              )}
+                            </div>
                             <div class="opacity-90">
                               {formatTime(entry.startTimeMinutes)}
                             </div>
@@ -406,8 +774,12 @@ const ScheduleDetail: Component = () => {
             </div>
 
             <div class="mt-4 text-sm text-gray-600">
-              <p>This calendar shows when your recurring schedule entries will occur each month.</p>
-              <p class="mt-1">Future override functionality will allow you to modify or cancel specific dates.</p>
+              <p>📅 <strong>Click a date</strong> to add a one-time entry, or <strong>click an entry</strong> to modify/skip it.</p>
+              <div class="flex gap-4 mt-2">
+                <span>🔵 Regular entries</span>
+                <span>🟡 📝 Modified entries</span>
+                <span>🔵 ⭐ One-time entries</span>
+              </div>
             </div>
           </div>
         </div>
@@ -537,8 +909,7 @@ const ScheduleDetail: Component = () => {
                     type="button" 
                     class="btn btn-error mr-2" 
                     onClick={() => {
-                      setShowEditModal(false);
-                      handleDeleteEntry(editingEntryIndex()!);
+                      handleDeleteEntry();
                     }}
                   >
                     Delete
@@ -623,6 +994,223 @@ const ScheduleDetail: Component = () => {
                   Delete Schedule
                 </button>
               </div>
+            </div>
+          </div>
+        </Show>
+
+        {/* Add One-Time Entry Modal */}
+        <Show when={showAddOneTimeModal()}>
+          <div class="modal modal-open">
+            <div class="modal-box">
+              <h2 class="font-bold text-lg mb-4">
+                Add One-Time Entry
+                <span class="text-sm font-normal text-gray-500 ml-2">
+                  ({selectedDate() && new Date(selectedDate() + 'T00:00:00').toLocaleDateString('en-US', { 
+                    weekday: 'long', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })})
+                </span>
+              </h2>
+              
+              <p class="text-sm text-gray-600 mb-4">
+                Add a special entry that will only appear on this specific date.
+              </p>
+
+              <form onSubmit={selectedEntry()?.isOverride ? handleUpdateOverride : handleCreateOneTimeEntry}>
+                <div class="mb-4">
+                  <label class="block mb-1">Entry Name</label>
+                  <input
+                    class="input input-bordered w-full"
+                    placeholder="e.g., Dentist appointment"
+                    value={oneTimeEntryForm().name}
+                    onInput={(e) => setOneTimeEntryForm({ ...oneTimeEntryForm(), name: e.currentTarget.value })}
+                    required
+                  />
+                </div>
+                <div class="mb-4">
+                  <label class="block mb-1">Start Time</label>
+                  <input
+                    class="input input-bordered w-full"
+                    type="time"
+                    value={`${Math.floor(oneTimeEntryForm().startTimeMinutes / 60).toString().padStart(2, '0')}:${(oneTimeEntryForm().startTimeMinutes % 60).toString().padStart(2, '0')}`}
+                    onInput={(e) => {
+                      const [hours, minutes] = e.currentTarget.value.split(':').map(Number);
+                      setOneTimeEntryForm({ ...oneTimeEntryForm(), startTimeMinutes: hours * 60 + minutes });
+                    }}
+                    required
+                  />
+                </div>
+                <div class="mb-4">
+                  <label class="block mb-1">Duration (minutes)</label>
+                  <input
+                    class="input input-bordered w-full"
+                    type="number"
+                    step="15"
+                    min="15"
+                    value={oneTimeEntryForm().durationMinutes}
+                    onInput={(e) => setOneTimeEntryForm({ ...oneTimeEntryForm(), durationMinutes: parseInt(e.currentTarget.value) })}
+                    required
+                  />
+                </div>
+                <div class="flex justify-end">
+                  <button 
+                    type="button" 
+                    class="btn btn-ghost mr-2" 
+                    onClick={() => setShowAddOneTimeModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" class="btn btn-info">
+                    ⭐ {selectedEntry()?.isOverride ? 'Update' : 'Add'} One-Time Entry
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </Show>
+
+        {/* Entry Action Modal */}
+        <Show when={showEntryActionModal() && selectedEntry()}>
+          <div class="modal modal-open">
+            <div class="modal-box">
+              <h2 class="font-bold text-lg mb-4">
+                Manage Entry
+                <span class="text-sm font-normal text-gray-500 ml-2">
+                  ({selectedDate() && new Date(selectedDate() + 'T00:00:00').toLocaleDateString('en-US', { 
+                    weekday: 'long', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })})
+                </span>
+              </h2>
+              
+              <div class="mb-4 p-3 bg-base-200 rounded">
+                <div class="font-medium">{selectedEntry()?.name}</div>
+                <div class="text-sm text-gray-600">
+                  {selectedEntry() && formatTime(selectedEntry()!.startTimeMinutes)} - {selectedEntry() && formatTime(selectedEntry()!.startTimeMinutes + selectedEntry()!.durationMinutes)}
+                </div>
+                <Show when={selectedEntry()?.isOverride}>
+                  <div class="text-xs text-info mt-1">
+                    This entry is already overridden ({selectedEntry()?.overrideType?.toLowerCase()})
+                  </div>
+                </Show>
+              </div>
+
+              <div class="space-y-3">
+                <Show when={!selectedEntry()?.isOverride}>
+                  <button 
+                    class="btn btn-warning w-full"
+                    onClick={handleModifyEntry}
+                  >
+                    📝 Modify this instance
+                  </button>
+                  <button 
+                    class="btn btn-error w-full"
+                    onClick={handleSkipEntry}
+                  >
+                    ❌ Skip this instance
+                  </button>
+                </Show>
+                <Show when={selectedEntry()?.isOverride}>
+                  <button 
+                    class="btn btn-warning w-full"
+                    onClick={handleEditOverride}
+                  >
+                    ✏️ Edit override
+                  </button>
+                  <button 
+                    class="btn btn-error w-full"
+                    onClick={handleRemoveOverride}
+                  >
+                    🗑️ Remove override
+                  </button>
+                </Show>
+              </div>
+
+              <div class="flex justify-end mt-4">
+                <button 
+                  type="button" 
+                  class="btn btn-ghost" 
+                  onClick={() => {
+                    setShowEntryActionModal(false);
+                    setSelectedEntry(null);
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </Show>
+
+        {/* Modify Entry Modal */}
+        <Show when={showModifyModal() && selectedEntry()}>
+          <div class="modal modal-open">
+            <div class="modal-box">
+              <h2 class="font-bold text-lg mb-4">
+                Modify Entry Instance
+                <span class="text-sm font-normal text-gray-500 ml-2">
+                  ({selectedDate() && new Date(selectedDate() + 'T00:00:00').toLocaleDateString('en-US', { 
+                    weekday: 'long', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })})
+                </span>
+              </h2>
+              
+              <p class="text-sm text-gray-600 mb-4">
+                Modify this instance without affecting the recurring schedule.
+              </p>
+
+              <form onSubmit={handleSaveModifiedEntry}>
+                <div class="mb-4">
+                  <label class="block mb-1">Entry Name</label>
+                  <input
+                    class="input input-bordered w-full"
+                    value={modifyEntryForm().name}
+                    onInput={(e) => setModifyEntryForm({ ...modifyEntryForm(), name: e.currentTarget.value })}
+                    required
+                  />
+                </div>
+                <div class="mb-4">
+                  <label class="block mb-1">Start Time</label>
+                  <input
+                    class="input input-bordered w-full"
+                    type="time"
+                    value={`${Math.floor(modifyEntryForm().startTimeMinutes / 60).toString().padStart(2, '0')}:${(modifyEntryForm().startTimeMinutes % 60).toString().padStart(2, '0')}`}
+                    onInput={(e) => {
+                      const [hours, minutes] = e.currentTarget.value.split(':').map(Number);
+                      setModifyEntryForm({ ...modifyEntryForm(), startTimeMinutes: hours * 60 + minutes });
+                    }}
+                    required
+                  />
+                </div>
+                <div class="mb-4">
+                  <label class="block mb-1">Duration (minutes)</label>
+                  <input
+                    class="input input-bordered w-full"
+                    type="number"
+                    step="15"
+                    min="15"
+                    value={modifyEntryForm().durationMinutes}
+                    onInput={(e) => setModifyEntryForm({ ...modifyEntryForm(), durationMinutes: parseInt(e.currentTarget.value) })}
+                    required
+                  />
+                </div>
+                <div class="flex justify-end">
+                  <button 
+                    type="button" 
+                    class="btn btn-ghost mr-2" 
+                    onClick={() => setShowModifyModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" class="btn btn-warning">
+                    📝 Save Modification
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </Show>

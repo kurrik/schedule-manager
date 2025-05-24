@@ -1,10 +1,46 @@
 import { createSignal } from 'solid-js';
 
 export interface ScheduleEntry {
+  id?: string; // Optional for new entries, included when loaded from backend
   name: string;
   dayOfWeek: number; // 0-6 where 0 is Sunday
   startTimeMinutes: number; // Minutes since midnight (0-1439)
   durationMinutes: number; // Duration in minutes (15-min increments)
+}
+
+export type OverrideType = 'MODIFY' | 'SKIP' | 'ONE_TIME';
+
+export interface ModifyOverrideData {
+  name?: string;
+  startTimeMinutes?: number;
+  durationMinutes?: number;
+}
+
+export interface OneTimeOverrideData {
+  name: string;
+  startTimeMinutes: number;
+  durationMinutes: number;
+}
+
+export interface ScheduleOverride {
+  id: string;
+  scheduleId: string;
+  overrideDate: string; // ISO date string (YYYY-MM-DD)
+  overrideType: OverrideType;
+  baseEntryId?: string; // For MODIFY/SKIP
+  overrideData?: ModifyOverrideData | OneTimeOverrideData;
+}
+
+export interface MaterializedEntry {
+  id: string;
+  name: string;
+  dayOfWeek: number;
+  startTimeMinutes: number;
+  durationMinutes: number;
+  date: string;
+  isOverride: boolean;
+  overrideType?: OverrideType;
+  baseEntryId?: string; // Changed from baseEntryIndex to baseEntryId
 }
 
 export interface Schedule {
@@ -102,6 +138,85 @@ export function useApi() {
       return fetchJson(`/schedules/${id}`, {
         method: 'DELETE',
       });
+    },
+
+    // Overrides
+    async getScheduleOverrides(scheduleId: string): Promise<{ overrides: ScheduleOverride[] }> {
+      return fetchJson(`/schedules/${scheduleId}/overrides`);
+    },
+
+    async getScheduleOverridesInRange(
+      scheduleId: string, 
+      startDate: string, 
+      endDate: string
+    ): Promise<{ overrides: ScheduleOverride[] }> {
+      return fetchJson(`/schedules/${scheduleId}/overrides/range?startDate=${startDate}&endDate=${endDate}`);
+    },
+
+    async createOverride(
+      scheduleId: string,
+      override: {
+        overrideDate: string;
+        overrideType: OverrideType;
+        baseEntryId?: string;
+        overrideData?: ModifyOverrideData | OneTimeOverrideData;
+      }
+    ): Promise<{ override: ScheduleOverride }> {
+      return fetchJson(`/schedules/${scheduleId}/overrides`, {
+        method: 'POST',
+        body: JSON.stringify(override),
+      });
+    },
+
+    async updateOverride(
+      overrideId: string,
+      updates: {
+        overrideDate?: string;
+        overrideType?: OverrideType;
+        baseEntryId?: string;
+        overrideData?: ModifyOverrideData | OneTimeOverrideData;
+      }
+    ): Promise<{ override: ScheduleOverride }> {
+      return fetchJson(`/overrides/${overrideId}`, {
+        method: 'PUT',
+        body: JSON.stringify(updates),
+      });
+    },
+
+    async deleteOverride(overrideId: string): Promise<{ message: string }> {
+      return fetchJson(`/overrides/${overrideId}`, {
+        method: 'DELETE',
+      });
+    },
+
+    // Convenience aliases for component compatibility
+    async createScheduleOverride(
+      scheduleId: string,
+      override: {
+        overrideDate: string;
+        overrideType: OverrideType;
+        baseEntryId?: string;
+        overrideData?: ModifyOverrideData | OneTimeOverrideData;
+      }
+    ): Promise<{ override: ScheduleOverride }> {
+      return this.createOverride(scheduleId, override);
+    },
+
+    async updateScheduleOverride(
+      _scheduleId: string, // Unused but kept for API consistency
+      overrideId: string,
+      updates: {
+        overrideDate?: string;
+        overrideType?: OverrideType;
+        baseEntryId?: string;
+        overrideData?: ModifyOverrideData | OneTimeOverrideData;
+      }
+    ): Promise<{ override: ScheduleOverride }> {
+      return this.updateOverride(overrideId, updates);
+    },
+
+    async deleteScheduleOverride(_scheduleId: string, overrideId: string): Promise<{ message: string }> {
+      return this.deleteOverride(overrideId);
     },
     
     // Auth
