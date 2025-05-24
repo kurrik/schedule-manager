@@ -197,6 +197,7 @@ export async function addScheduleEntry(c: Context<AppContext>) {
     }
 
     const entry = new ScheduleEntry({
+      id: crypto.randomUUID(), // Assign ID upfront for consistency
       name,
       dayOfWeek,
       startTimeMinutes,
@@ -233,12 +234,16 @@ export async function updateScheduleEntry(c: Context<AppContext>) {
   }
 
   const body = await c.req.json<{
+    id?: string;
     name: string;
     dayOfWeek: number;
     startTimeMinutes: number;
     durationMinutes: number;
   }>();
-  const { name, dayOfWeek, startTimeMinutes, durationMinutes } = body;
+  const { id: entryId, name, dayOfWeek, startTimeMinutes, durationMinutes } = body;
+
+  console.log('[DEBUG] updateScheduleEntry received body:', body);
+  console.log('[DEBUG] extracted entryId:', entryId);
 
   if (!name || dayOfWeek === undefined || startTimeMinutes === undefined || durationMinutes === undefined) {
     return c.json({ error: 'All fields are required: name, dayOfWeek, startTimeMinutes, durationMinutes' }, 400);
@@ -259,15 +264,27 @@ export async function updateScheduleEntry(c: Context<AppContext>) {
       return c.json({ error: 'Entry index out of range' }, 400);
     }
 
+    // Use the entry ID from the request body, or preserve the original if not provided
+    const originalEntry = schedule.entries[entryIndex];
+    console.log('[DEBUG] Original entry:', originalEntry.toJSON());
+    
+    const finalEntryId = entryId || originalEntry.id;
+    console.log('[DEBUG] Final entry ID to use:', finalEntryId);
+    
     const updatedEntry = new ScheduleEntry({
+      id: finalEntryId, // Use ID from request body or preserve original
       name,
       dayOfWeek,
       startTimeMinutes,
       durationMinutes,
     });
 
+    console.log('[DEBUG] Updated entry:', updatedEntry.toJSON());
+
     // Replace the entry at the specified index
     schedule.updateEntry(entryIndex, updatedEntry);
+    
+    console.log('[DEBUG] Schedule entries after update:', schedule.entries.map(e => e.toJSON()));
 
     await uow.schedules.save(schedule);
     await uow.commit();

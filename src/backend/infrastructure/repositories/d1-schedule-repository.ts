@@ -120,47 +120,108 @@ export class D1ScheduleRepository implements IScheduleRepository {
   }
 
   async save(schedule: Schedule): Promise<void> {
-    // Use a transaction-like approach with batch operations
+    console.log('[DEBUG] Starting save for schedule:', schedule.id);
+    
+    // Check overrides before save
+    const overridesBefore = await this.db.prepare(
+      'SELECT id, base_entry_id FROM schedule_overrides WHERE schedule_id = ?'
+    ).bind(schedule.id).all();
+    console.log('[DEBUG] Overrides before save:', overridesBefore.results);
+    
+    // Get existing entry IDs to know which ones to delete later
+    const existingEntries = await this.db.prepare(
+      'SELECT id FROM schedule_entries WHERE schedule_id = ?'
+    ).bind(schedule.id).all<{id: string}>();
+    
+    const existingIds = new Set(existingEntries.results?.map(row => row.id) || []);
+    const newIds = new Set<string>();
+    
+    console.log('[DEBUG] Existing entries:', Array.from(existingIds));
+    console.log('[DEBUG] Schedule entries to save:', schedule.entries.map(e => ({ id: e.id, name: e.name })));
+
+    // Prepare batch operations
     const batch = [];
 
-    // Update schedule
+    // Update schedule (use UPDATE to avoid triggering CASCADE DELETE on overrides)
     batch.push(
       this.db.prepare(`
-        INSERT OR REPLACE INTO schedules 
-        (id, owner_id, name, timezone, ical_url, updated_at)
-        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        UPDATE schedules 
+        SET owner_id = ?, name = ?, timezone = ?, ical_url = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
       `).bind(
-        schedule.id,
         schedule.ownerId,
         schedule.name,
         schedule.timeZone,
-        schedule.icalUrl
+        schedule.icalUrl,
+        schedule.id
       )
     );
 
-    // Delete existing entries
-    batch.push(
-      this.db.prepare('DELETE FROM schedule_entries WHERE schedule_id = ?')
-        .bind(schedule.id)
-    );
-
-    // Insert entries
+    // Insert or update entries (preserving IDs to maintain override references)
     for (const entry of schedule.entries) {
       const entryId = entry.id || crypto.randomUUID();
-      batch.push(
-        this.db.prepare(`
-          INSERT INTO schedule_entries 
-          (id, schedule_id, name, day_of_week, start_time_minutes, duration_minutes)
-          VALUES (?, ?, ?, ?, ?, ?)
-        `).bind(
-          entryId,
-          schedule.id,
-          entry.name,
-          entry.dayOfWeek,
-          entry.startTimeMinutes,
-          entry.durationMinutes
-        )
-      );
+      console.log('[DEBUG] Processing entry:', { entryId, name: entry.name });
+      newIds.add(entryId);
+      
+      if (existingIds.has(entryId)) {
+        // Update existing entry (preserves foreign key references)
+        console.log('[DEBUG] Updating existing entry:', entryId);
+        batch.push(
+          this.db.prepare(`
+            UPDATE schedule_entries 
+            SET name = ?, day_of_week = ?, start_time_minutes = ?, duration_minutes = ?
+            WHERE id = ?
+          `).bind(
+            entry.name,
+            entry.dayOfWeek,
+            entry.startTimeMinutes,
+            entry.durationMinutes,
+            entryId
+          )
+        );
+      } else {
+        // Insert new entry
+        console.log('[DEBUG] Inserting new entry:', entryId);
+        batch.push(
+          this.db.prepare(`
+            INSERT INTO schedule_entries 
+            (id, schedule_id, name, day_of_week, start_time_minutes, duration_minutes)
+            VALUES (?, ?, ?, ?, ?, ?)
+          `).bind(
+            entryId,
+            schedule.id,
+            entry.name,
+            entry.dayOfWeek,
+            entry.startTimeMinutes,
+            entry.durationMinutes
+          )
+        );
+      }
+    }
+    
+    console.log('[DEBUG] New entry IDs:', Array.from(newIds));
+
+    // For entries that are no longer in the schedule, check if they're referenced by overrides
+    for (const existingId of existingIds) {
+      if (!newIds.has(existingId)) {
+        console.log('[DEBUG] Entry no longer in schedule:', existingId);
+        // Check if this entry is referenced by any overrides
+        const overrideCount = await this.db.prepare(
+          'SELECT COUNT(*) as count FROM schedule_overrides WHERE base_entry_id = ?'
+        ).bind(existingId).first<{count: number}>();
+        
+        console.log('[DEBUG] Override count for entry', existingId, ':', overrideCount?.count);
+        
+        // Only delete if no overrides reference this entry
+        if (!overrideCount || overrideCount.count === 0) {
+          console.log('[DEBUG] Deleting entry:', existingId);
+          batch.push(
+            this.db.prepare('DELETE FROM schedule_entries WHERE id = ?').bind(existingId)
+          );
+        } else {
+          console.log('[DEBUG] Keeping entry', existingId, 'due to override references');
+        }
+      }
     }
 
     // Delete existing shares
@@ -180,7 +241,14 @@ export class D1ScheduleRepository implements IScheduleRepository {
     }
 
     // Execute all operations
+    console.log('[DEBUG] Executing batch with', batch.length, 'operations');
     await this.db.batch(batch);
+    
+    // Check overrides after save
+    const overridesAfter = await this.db.prepare(
+      'SELECT id, base_entry_id FROM schedule_overrides WHERE schedule_id = ?'
+    ).bind(schedule.id).all();
+    console.log('[DEBUG] Overrides after save:', overridesAfter.results);
   }
 
   async delete(id: string): Promise<void> {

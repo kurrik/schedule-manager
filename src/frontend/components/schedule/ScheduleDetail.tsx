@@ -169,6 +169,7 @@ const ScheduleDetail: Component = () => {
       setShowEditModal(false);
       setEditingEntryId(null);
       await loadSchedule();
+      await loadOverridesForMonth(); // Reload overrides after entry update
     } catch (err) {
       console.error('Failed to update entry:', err);
       setError('Failed to update entry');
@@ -188,6 +189,7 @@ const ScheduleDetail: Component = () => {
       setShowEditModal(false);
       setEditingEntryId(null);
       await loadSchedule();
+      await loadOverridesForMonth(); // Reload overrides after entry deletion
     } catch (err) {
       console.error('Failed to delete entry:', err);
       setError('Failed to delete entry');
