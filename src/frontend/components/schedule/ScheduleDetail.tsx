@@ -66,9 +66,17 @@ const ScheduleDetail: Component = () => {
     const year = viewDate.getFullYear();
     const month = viewDate.getMonth();
     
-    // Get first day of month and last day of month
-    const startDate = new Date(year, month, 1);
-    const endDate = new Date(year, month + 1, 0);
+    // Get the same date range that the calendar displays (6 weeks starting from Sunday before first day)
+    const firstDay = new Date(year, month, 1);
+    const startingDayOfWeek = firstDay.getDay();
+    
+    // Start from the beginning of the week containing the first day
+    const startDate = new Date(firstDay);
+    startDate.setDate(startDate.getDate() - startingDayOfWeek);
+    
+    // End date is 42 days later (6 weeks * 7 days)
+    const endDate = new Date(startDate);
+    endDate.setDate(startDate.getDate() + 41); // 41 because we include the start date
     
     const startDateStr = startDate.toISOString().split('T')[0];
     const endDateStr = endDate.toISOString().split('T')[0];
