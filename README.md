@@ -23,6 +23,15 @@ Start the development server:
 npm run dev
 ```
 
+# Prod deploy
+
+```bash
+npx wrangler secret put GOOGLE_CLIENT_ID
+npx wrangler secret put GOOGLE_CLIENT_SECRET
+
+npm run deploy
+```
+
 ## Available Scripts
 
 - `npm run dev` - Start development server
