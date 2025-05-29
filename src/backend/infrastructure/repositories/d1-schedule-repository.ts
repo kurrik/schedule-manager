@@ -119,8 +119,62 @@ export class D1ScheduleRepository implements IScheduleRepository {
     );
   }
 
-  async save(schedule: Schedule): Promise<void> {
-    console.log('[DEBUG] Starting save for schedule:', schedule.id);
+  async create(schedule: Schedule): Promise<void> {
+    console.log('[DEBUG] Creating new schedule:', schedule.id);
+    
+    // Prepare batch operations
+    const batch = [];
+
+    // Insert schedule
+    batch.push(
+      this.db.prepare(`
+        INSERT INTO schedules (id, owner_id, name, timezone, ical_url, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `).bind(
+        schedule.id,
+        schedule.ownerId,
+        schedule.name,
+        schedule.timeZone,
+        schedule.icalUrl
+      )
+    );
+
+    // Insert entries
+    for (const entry of schedule.entries) {
+      const entryId = entry.id || crypto.randomUUID();
+      batch.push(
+        this.db.prepare(`
+          INSERT INTO schedule_entries 
+          (id, schedule_id, name, day_of_week, start_time_minutes, duration_minutes)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).bind(
+          entryId,
+          schedule.id,
+          entry.name,
+          entry.dayOfWeek,
+          entry.startTimeMinutes,
+          entry.durationMinutes
+        )
+      );
+    }
+
+    // Insert shares
+    for (const userId of schedule.sharedUserIds) {
+      batch.push(
+        this.db.prepare(`
+          INSERT INTO schedule_shares (schedule_id, user_id)
+          VALUES (?, ?)
+        `).bind(schedule.id, userId)
+      );
+    }
+
+    // Execute all operations
+    console.log('[DEBUG] Executing create batch with', batch.length, 'operations');
+    await this.db.batch(batch);
+  }
+
+  async update(schedule: Schedule): Promise<void> {
+    console.log('[DEBUG] Updating existing schedule:', schedule.id);
     
     // Check overrides before save
     const overridesBefore = await this.db.prepare(
@@ -241,7 +295,7 @@ export class D1ScheduleRepository implements IScheduleRepository {
     }
 
     // Execute all operations
-    console.log('[DEBUG] Executing batch with', batch.length, 'operations');
+    console.log('[DEBUG] Executing update batch with', batch.length, 'operations');
     await this.db.batch(batch);
     
     // Check overrides after save

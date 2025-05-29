@@ -25,7 +25,7 @@ export class ScheduleService {
       entries: [],
     });
 
-    await this.uow.schedules.save(schedule);
+    await this.uow.schedules.create(schedule);
     await this.uow.commit();
     return schedule;
   }
@@ -45,7 +45,7 @@ export class ScheduleService {
     }
 
     schedule.addEntry(entry);
-    await this.uow.schedules.save(schedule);
+    await this.uow.schedules.update(schedule);
     await this.uow.commit();
   }
 
@@ -69,7 +69,7 @@ export class ScheduleService {
     }
 
     schedule.shareWithUser(targetUserId);
-    await this.uow.schedules.save(schedule);
+    await this.uow.schedules.update(schedule);
     await this.uow.commit();
   }
 }

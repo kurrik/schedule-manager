@@ -68,8 +68,8 @@ export async function createSchedule(c: Context<AppContext>) {
       entries: []
     });
 
-    console.log('[DEBUG] Saving schedule:', schedule.toJSON());
-    await uow.schedules.save(schedule);
+    console.log('[DEBUG] Creating schedule:', schedule.toJSON());
+    await uow.schedules.create(schedule);
     await uow.commit();
     return c.json({ schedule: schedule.toJSON() }, 201);
   } catch (error) {
@@ -150,7 +150,7 @@ export async function updateSchedule(c: Context<AppContext>) {
       schedule.updateTimeZone(timeZone);
     }
 
-    await uow.schedules.save(schedule);
+    await uow.schedules.update(schedule);
     await uow.commit();
     return c.json({ schedule: schedule.toJSON() });
   } catch (error) {
@@ -205,7 +205,7 @@ export async function addScheduleEntry(c: Context<AppContext>) {
     });
 
     schedule.addEntry(entry);
-    await uow.schedules.save(schedule);
+    await uow.schedules.update(schedule);
     await uow.commit();
     return c.json({ schedule: schedule.toJSON() }, 201);
   } catch (error) {
@@ -286,7 +286,7 @@ export async function updateScheduleEntry(c: Context<AppContext>) {
     
     console.log('[DEBUG] Schedule entries after update:', schedule.entries.map(e => e.toJSON()));
 
-    await uow.schedules.save(schedule);
+    await uow.schedules.update(schedule);
     await uow.commit();
     return c.json({ schedule: schedule.toJSON() });
   } catch (error) {
@@ -330,7 +330,7 @@ export async function deleteScheduleEntry(c: Context<AppContext>) {
     }
 
     schedule.removeEntry(entryIndex);
-    await uow.schedules.save(schedule);
+    await uow.schedules.update(schedule);
     await uow.commit();
     return c.json({ schedule: schedule.toJSON() });
   } catch (error) {
