@@ -218,8 +218,38 @@ export class D1SchedulePhaseRepository implements ISchedulePhaseRepository {
   }
 
   async delete(id: string): Promise<void> {
-    // Foreign key constraints will handle cascade deletes for entries
-    await this.db.prepare('DELETE FROM schedule_phases WHERE id = ?').bind(id).run();
+    // Prepare batch operations to handle dependencies
+    const batch = [];
+    
+    // Delete overrides that reference entries in this phase
+    batch.push(
+      this.db.prepare(`
+        DELETE FROM schedule_overrides 
+        WHERE base_entry_id IN (
+          SELECT id FROM schedule_entries WHERE phase_id = ?
+        )
+      `).bind(id)
+    );
+    
+    // Delete overrides that directly reference this phase
+    batch.push(
+      this.db.prepare(`
+        DELETE FROM schedule_overrides 
+        WHERE phase_id = ?
+      `).bind(id)
+    );
+    
+    // Delete all entries in this phase
+    batch.push(
+      this.db.prepare('DELETE FROM schedule_entries WHERE phase_id = ?').bind(id)
+    );
+    
+    // Finally delete the phase itself
+    batch.push(
+      this.db.prepare('DELETE FROM schedule_phases WHERE id = ?').bind(id)
+    );
+    
+    await this.db.batch(batch);
   }
 
   private mapToSchedulePhase(

@@ -3,6 +3,7 @@ import { honoSimpleGoogleAuth, createKVSessionStore, type GoogleAuthEnv } from '
 import type { KVNamespace, Fetcher, D1Database } from '@cloudflare/workers-types';
 import { scheduleHandlers } from './api/schedule-handlers';
 import { overrideHandlers } from './api/override-handlers';
+import { phaseHandlers } from './api/phase-handlers';
 import { ICalService } from './domain/services/ical-service';
 
 export type Env = GoogleAuthEnv & {
@@ -98,6 +99,12 @@ app.get('/api/schedules/:scheduleId/overrides/range', overrideHandlers.getSchedu
 app.post('/api/schedules/:scheduleId/overrides', overrideHandlers.createOverride);
 app.put('/api/overrides/:overrideId', overrideHandlers.updateOverride);
 app.delete('/api/overrides/:overrideId', overrideHandlers.deleteOverride);
+
+// Phase routes
+app.get('/api/schedules/:scheduleId/phases', phaseHandlers.getSchedulePhases);
+app.post('/api/schedules/:scheduleId/phases', phaseHandlers.createSchedulePhase);
+app.put('/api/schedules/:scheduleId/phases/:phaseId', phaseHandlers.updateSchedulePhase);
+app.delete('/api/schedules/:scheduleId/phases/:phaseId', phaseHandlers.deleteSchedulePhase);
 
 // --- Public iCal Feed Route ---
 app.get('/ical/:icalUrl', async (c) => {

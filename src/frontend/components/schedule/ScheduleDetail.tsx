@@ -1,6 +1,6 @@
 import { Component, createSignal, onMount, onCleanup, Show, For, createEffect } from 'solid-js';
 import { useParams, A, useNavigate } from '@solidjs/router';
-import { useApi, type Schedule, type ScheduleEntry, type ScheduleOverride, type MaterializedEntry } from '../../services/api';
+import { useApi, type Schedule, type SchedulePhase, type ScheduleEntry, type ScheduleOverride, type MaterializedEntry } from '../../services/api';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 const ScheduleDetail: Component = () => {
@@ -25,6 +25,14 @@ const ScheduleDetail: Component = () => {
   const [showEntryActionModal, setShowEntryActionModal] = createSignal(false);
   const [selectedDate, setSelectedDate] = createSignal<string>('');
   const [selectedEntry, setSelectedEntry] = createSignal<MaterializedEntry | null>(null);
+  const [showEditPhaseModal, setShowEditPhaseModal] = createSignal(false);
+  const [showDeletePhaseModal, setShowDeletePhaseModal] = createSignal(false);
+  const [editingPhase, setEditingPhase] = createSignal<SchedulePhase | null>(null);
+  const [phaseForm, setPhaseForm] = createSignal({
+    name: '',
+    startDate: '',
+    endDate: '',
+  });
   const [entryForm, setEntryForm] = createSignal<ScheduleEntry>({
     name: '',
     dayOfWeek: 0,
@@ -108,6 +116,12 @@ const ScheduleDetail: Component = () => {
         setSelectedEntry(null);
       } else if (showModifyModal()) {
         setShowModifyModal(false);
+      } else if (showEditPhaseModal()) {
+        setShowEditPhaseModal(false);
+        setEditingPhase(null);
+      } else if (showDeletePhaseModal()) {
+        setShowDeletePhaseModal(false);
+        setEditingPhase(null);
       }
     }
   };
@@ -265,15 +279,44 @@ const ScheduleDetail: Component = () => {
     }
   };
 
-  // Group entries by day of week for the weekly grid
-  const entriesByDay = () => {
-    if (!schedule()) return Array(7).fill([]);
+  // Group entries by phase and day for the phase-based grid
+  const entriesByPhaseAndDay = () => {
+    if (!schedule()) return [];
     
-    const grouped = Array(7).fill(null).map(() => []);
-    schedule()!.entries.forEach((entry) => {
-      grouped[entry.dayOfWeek].push(entry);
+    return schedule()!.phases.map(phase => {
+      const grouped = Array(7).fill(null).map(() => []);
+      phase.entries.forEach((entry) => {
+        grouped[entry.dayOfWeek].push(entry);
+      });
+      return {
+        phase,
+        entriesByDay: grouped
+      };
     });
-    return grouped;
+  };
+
+  const formatPhaseDescription = (phase: SchedulePhase): string => {
+    if (!phase.startDate && !phase.endDate) {
+      return 'Always active';
+    }
+    
+    const formatDate = (dateStr: string) => {
+      return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+    };
+
+    if (phase.startDate && phase.endDate) {
+      return `${formatDate(phase.startDate)} - ${formatDate(phase.endDate)}`;
+    } else if (phase.startDate) {
+      return `From ${formatDate(phase.startDate)}`;
+    } else if (phase.endDate) {
+      return `Until ${formatDate(phase.endDate)}`;
+    }
+    
+    return '';
   };
 
   // Calendar view utilities
@@ -611,6 +654,68 @@ const ScheduleDetail: Component = () => {
     setShowAddOneTimeModal(true);
   };
 
+  const openEditPhaseModal = (phase: SchedulePhase) => {
+    setEditingPhase(phase);
+    setPhaseForm({
+      name: phase.name || '',
+      startDate: phase.startDate || '',
+      endDate: phase.endDate || '',
+    });
+    setShowEditPhaseModal(true);
+  };
+
+  const openDeletePhaseModal = (phase: SchedulePhase) => {
+    setEditingPhase(phase);
+    setShowDeletePhaseModal(true);
+  };
+
+  const handleUpdatePhase = async (e: Event) => {
+    e.preventDefault();
+    const phase = editingPhase();
+    if (!schedule() || !phase) return;
+
+    try {
+      setIsLoading(true);
+      await api.updateSchedulePhase(schedule()!.id, phase.id, {
+        name: phaseForm().name || undefined,
+        startDate: phaseForm().startDate || undefined,
+        endDate: phaseForm().endDate || undefined,
+      });
+      setShowEditPhaseModal(false);
+      setEditingPhase(null);
+      await loadSchedule();
+    } catch (err) {
+      console.error('Failed to update phase:', err);
+      setError('Failed to update phase');
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeletePhase = async () => {
+    const phase = editingPhase();
+    if (!schedule() || !phase) return;
+
+    // Prevent deleting the last phase
+    if (schedule()!.phases.length <= 1) {
+      setError('Cannot delete the last phase. Schedules must have at least one phase.');
+      setShowDeletePhaseModal(false);
+      setEditingPhase(null);
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      await api.deleteSchedulePhase(schedule()!.id, phase.id);
+      setShowDeletePhaseModal(false);
+      setEditingPhase(null);
+      await loadSchedule();
+    } catch (err) {
+      console.error('Failed to delete phase:', err);
+      setError('Failed to delete phase');
+      setIsLoading(false);
+    }
+  };
+
   return (
     <Show when={!isLoading()} fallback={<LoadingSpinner fullScreen={false} />}>
       <Show when={schedule() && !error()} fallback={<div class="alert alert-error">{error()}</div>}>
@@ -645,36 +750,82 @@ const ScheduleDetail: Component = () => {
             </div>
           </div>
 
-          {/* Weekly Grid */}
-          <div class="grid grid-cols-1 md:grid-cols-7 gap-4 mb-8">
-            <For each={dayNames}>{(dayName, dayIndex) => (
-              <div class="bg-base-200 rounded-lg p-4">
-                <h3 class="font-semibold text-center mb-3">{dayName}</h3>
-                <div class="space-y-2 min-h-20">
-                  <For each={entriesByDay()[dayIndex()]}>
-                    {(entry: ScheduleEntry) => (
-                      <div 
-                        class="bg-primary text-primary-content p-2 rounded cursor-pointer hover:bg-primary-focus"
-                        onClick={() => openEditModal(entry.id!)}
-                      >
-                        <div class="text-sm font-medium">{entry.name}</div>
-                        <div class="text-xs opacity-90">
-                          {formatTime(entry.startTimeMinutes)} - {formatTime(entry.startTimeMinutes + entry.durationMinutes)}
+          {/* Phase-Based Weekly Grid */}
+          <div class="space-y-8 mb-8">
+            <For each={entriesByPhaseAndDay()}>
+              {(phaseData) => (
+                <div class="bg-base-200 rounded-lg p-6">
+                  {/* Phase Header */}
+                  <div class="mb-4">
+                    <div class="flex items-center justify-between">
+                      <div class="flex items-center gap-2">
+                        <h2 class="text-xl font-semibold">
+                          {phaseData.phase.name || 'Default Phase'}
+                        </h2>
+                        <button 
+                          class="btn btn-ghost btn-sm" 
+                          onClick={() => openEditPhaseModal(phaseData.phase)}
+                          title="Edit phase"
+                        >
+                          ✏️
+                        </button>
+                        <Show when={schedule()!.phases.length > 1}>
+                          <button 
+                            class="btn btn-ghost btn-sm text-error" 
+                            onClick={() => openDeletePhaseModal(phaseData.phase)}
+                            title="Delete phase"
+                          >
+                            🗑️
+                          </button>
+                        </Show>
+                      </div>
+                      <div class="badge badge-outline">
+                        {formatPhaseDescription(phaseData.phase)}
+                      </div>
+                    </div>
+                    <Show when={phaseData.phase.startDate || phaseData.phase.endDate}>
+                      <p class="text-sm text-gray-600 mt-1">
+                        This phase {phaseData.phase.startDate && phaseData.phase.endDate 
+                          ? `is active from ${formatPhaseDescription(phaseData.phase)}` 
+                          : formatPhaseDescription(phaseData.phase).toLowerCase()}
+                      </p>
+                    </Show>
+                  </div>
+
+                  {/* Weekly Grid for this Phase */}
+                  <div class="grid grid-cols-1 md:grid-cols-7 gap-4">
+                    <For each={dayNames}>{(dayName, dayIndex) => (
+                      <div class="bg-base-100 rounded-lg p-4">
+                        <h3 class="font-semibold text-center mb-3 text-sm">{dayName}</h3>
+                        <div class="space-y-2 min-h-20">
+                          <For each={phaseData.entriesByDay[dayIndex()]}>
+                            {(entry: ScheduleEntry) => (
+                              <div 
+                                class="bg-primary text-primary-content p-2 rounded cursor-pointer hover:bg-primary-focus"
+                                onClick={() => openEditModal(entry.id!)}
+                              >
+                                <div class="text-sm font-medium">{entry.name}</div>
+                                <div class="text-xs opacity-90">
+                                  {formatTime(entry.startTimeMinutes)} - {formatTime(entry.startTimeMinutes + entry.durationMinutes)}
+                                </div>
+                              </div>
+                            )}
+                          </For>
+                          <div 
+                            class="border-2 border-dashed border-base-300 rounded p-4 text-center cursor-pointer hover:border-primary hover:bg-base-200 transition-colors"
+                            onClick={() => openAddModalForDay(dayIndex())}
+                          >
+                            <div class="text-base-content/50 text-sm">
+                              + Add entry
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    )}
-                  </For>
-                  <div 
-                    class="border-2 border-dashed border-base-300 rounded p-4 text-center cursor-pointer hover:border-primary hover:bg-base-100 transition-colors"
-                    onClick={() => openAddModalForDay(dayIndex())}
-                  >
-                    <div class="text-base-content/50 text-sm">
-                      + Add entry
-                    </div>
+                    )}</For>
                   </div>
                 </div>
-              </div>
-            )}</For>
+              )}
+            </For>
           </div>
 
           {/* iCal Feed Section */}
@@ -1221,6 +1372,107 @@ const ScheduleDetail: Component = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </Show>
+
+        {/* Edit Phase Modal */}
+        <Show when={showEditPhaseModal() && editingPhase()}>
+          <div class="modal modal-open">
+            <div class="modal-box">
+              <h2 class="font-bold text-lg mb-4">Edit Phase</h2>
+              <form onSubmit={handleUpdatePhase}>
+                <div class="mb-4">
+                  <label class="block mb-1">Phase Name</label>
+                  <input
+                    class="input input-bordered w-full"
+                    placeholder="e.g., Summer Schedule, School Year"
+                    value={phaseForm().name}
+                    onInput={(e) => setPhaseForm({ ...phaseForm(), name: e.currentTarget.value })}
+                  />
+                  <div class="text-xs text-gray-500 mt-1">
+                    Leave empty to use "Default Phase"
+                  </div>
+                </div>
+                <div class="mb-4">
+                  <label class="block mb-1">Start Date (optional)</label>
+                  <input
+                    class="input input-bordered w-full"
+                    type="date"
+                    value={phaseForm().startDate}
+                    onInput={(e) => setPhaseForm({ ...phaseForm(), startDate: e.currentTarget.value })}
+                  />
+                  <div class="text-xs text-gray-500 mt-1">
+                    Leave empty for no start date restriction
+                  </div>
+                </div>
+                <div class="mb-4">
+                  <label class="block mb-1">End Date (optional)</label>
+                  <input
+                    class="input input-bordered w-full"
+                    type="date"
+                    value={phaseForm().endDate}
+                    onInput={(e) => setPhaseForm({ ...phaseForm(), endDate: e.currentTarget.value })}
+                  />
+                  <div class="text-xs text-gray-500 mt-1">
+                    Leave empty for no end date restriction
+                  </div>
+                </div>
+                <div class="flex justify-end">
+                  <button 
+                    type="button" 
+                    class="btn btn-ghost mr-2" 
+                    onClick={() => {
+                      setShowEditPhaseModal(false);
+                      setEditingPhase(null);
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" class="btn btn-primary">
+                    Save Changes
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </Show>
+
+        {/* Delete Phase Modal */}
+        <Show when={showDeletePhaseModal() && editingPhase()}>
+          <div class="modal modal-open">
+            <div class="modal-box">
+              <h2 class="font-bold text-lg text-error mb-4">Delete Phase</h2>
+              <p class="mb-4">
+                Are you sure you want to delete the phase "<strong>{editingPhase()?.name || 'Default Phase'}</strong>"? 
+                This will permanently delete the phase and all its schedule entries. This action cannot be undone.
+              </p>
+              <Show when={editingPhase()?.entries && editingPhase()!.entries.length > 0}>
+                <div class="bg-warning/20 p-3 rounded mb-4">
+                  <p class="text-sm">
+                    ⚠️ This phase contains {editingPhase()!.entries.length} schedule entries that will also be deleted.
+                  </p>
+                </div>
+              </Show>
+              <div class="flex justify-end">
+                <button 
+                  type="button" 
+                  class="btn btn-ghost mr-2" 
+                  onClick={() => {
+                    setShowDeletePhaseModal(false);
+                    setEditingPhase(null);
+                  }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="button" 
+                  class="btn btn-error" 
+                  onClick={handleDeletePhase}
+                >
+                  Delete Phase
+                </button>
+              </div>
             </div>
           </div>
         </Show>

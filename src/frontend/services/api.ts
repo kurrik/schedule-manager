@@ -43,6 +43,15 @@ export interface MaterializedEntry {
   baseEntryId?: string; // Changed from baseEntryIndex to baseEntryId
 }
 
+export interface SchedulePhase {
+  id: string;
+  scheduleId: string;
+  name?: string;
+  startDate?: string; // ISO date (YYYY-MM-DD)
+  endDate?: string;   // ISO date (YYYY-MM-DD)
+  entries: ScheduleEntry[];
+}
+
 export interface Schedule {
   id: string;
   name: string;
@@ -50,6 +59,8 @@ export interface Schedule {
   icalUrl: string;
   ownerId: string;
   sharedUserIds: string[];
+  phases: SchedulePhase[];
+  // Backward compatibility: entries are still available as aggregated view
   entries: ScheduleEntry[];
 }
 
@@ -217,6 +228,42 @@ export function useApi() {
 
     async deleteScheduleOverride(_scheduleId: string, overrideId: string): Promise<{ message: string }> {
       return this.deleteOverride(overrideId);
+    },
+
+    // Phase Management
+    async createSchedulePhase(
+      scheduleId: string,
+      phase: {
+        name?: string;
+        startDate?: string;
+        endDate?: string;
+      }
+    ): Promise<{ phase: SchedulePhase }> {
+      return fetchJson<{ phase: SchedulePhase }>(`/schedules/${scheduleId}/phases`, {
+        method: 'POST',
+        body: JSON.stringify(phase),
+      });
+    },
+
+    async updateSchedulePhase(
+      scheduleId: string,
+      phaseId: string,
+      updates: {
+        name?: string;
+        startDate?: string;
+        endDate?: string;
+      }
+    ): Promise<{ phase: SchedulePhase }> {
+      return fetchJson<{ phase: SchedulePhase }>(`/schedules/${scheduleId}/phases/${phaseId}`, {
+        method: 'PUT',
+        body: JSON.stringify(updates),
+      });
+    },
+
+    async deleteSchedulePhase(scheduleId: string, phaseId: string): Promise<{ message: string }> {
+      return fetchJson<{ message: string }>(`/schedules/${scheduleId}/phases/${phaseId}`, {
+        method: 'DELETE',
+      });
     },
     
     // Auth
