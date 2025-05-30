@@ -1,5 +1,16 @@
 import { test, expect } from '@playwright/test';
-import { signInTestUser, testUsers, setupTestDatabase } from './utils';
+import { 
+  signInTestUser, 
+  testUsers, 
+  setupTestDatabase,
+  createScheduleViaUI,
+  navigateToScheduleDetail,
+  addScheduleEntry,
+  editScheduleEntry,
+  deleteScheduleEntry,
+  editScheduleInfo,
+  type ScheduleEntryDetails
+} from './utils';
 
 test.describe('Schedule Management', () => {
   test.beforeEach(async ({ page }) => {
@@ -11,119 +22,108 @@ test.describe('Schedule Management', () => {
   test('should create a new schedule', async ({ page }) => {
     // Click create schedule button
     await page.getByTestId('new-schedule-button').click();
-    
+
     // Wait for modal to appear
     await expect(page.getByTestId('create-schedule-modal')).toBeVisible();
-    
+
     // Fill in schedule details using test IDs
     await page.getByTestId('schedule-name-input').fill('Test Schedule');
     await page.getByTestId('schedule-timezone-input').fill('America/New_York');
-    
+
     // Submit form
     await page.getByTestId('create-schedule-submit-button').click();
-    
+
     // Wait for modal to close and schedule to appear in list
     await expect(page.getByTestId('create-schedule-modal')).not.toBeVisible();
     await expect(page.getByText('Test Schedule')).toBeVisible();
   });
 
   test('should update schedule name', async ({ page }) => {
-    // First create a schedule
-    const response = await page.request.post('/api/schedules', {
-      data: {
-        name: 'Original Schedule',
-        timeZone: 'America/New_York'
-      }
-    });
-    expect(response.ok()).toBeTruthy();
-    const schedule = await response.json();
-    expect(schedule.id).toBeDefined();
+    // Create a schedule via UI
+    const originalName = await createScheduleViaUI(page, 'Original Schedule');
     
     // Navigate to schedule detail
-    await page.goto(`/schedules/${schedule.id}`);
+    await navigateToScheduleDetail(page, originalName);
     
-    // Edit schedule name using test IDs
-    await page.getByTestId('edit-schedule-button').click();
-    await expect(page.getByTestId('edit-schedule-modal')).toBeVisible();
+    // Edit schedule name
+    const updatedName = `Updated Schedule ${Math.random().toString(36).substring(7)}`;
+    await editScheduleInfo(page, updatedName);
     
-    await page.getByTestId('edit-schedule-name-input').fill('Updated Schedule');
-    await page.getByTestId('edit-schedule-save-button').click();
-    
-    // Wait for modal to close and verify updated name
-    await expect(page.getByTestId('edit-schedule-modal')).not.toBeVisible();
-    await expect(page.getByText('Updated Schedule')).toBeVisible();
+    // Verify updated name appears
+    await expect(page.getByText(updatedName)).toBeVisible();
   });
 
   test('should add schedule entry', async ({ page }) => {
-    // Create a schedule first
-    const response = await page.request.post('/api/schedules', {
-      data: {
-        name: 'Test Schedule',
-        timeZone: 'America/New_York'
-      }
-    });
-    expect(response.ok()).toBeTruthy();
-    const schedule = await response.json();
-    expect(schedule.id).toBeDefined();
+    // Create a schedule via UI
+    const scheduleName = await createScheduleViaUI(page, 'Test Schedule');
     
     // Navigate to schedule detail
-    await page.goto(`/schedules/${schedule.id}`);
+    await navigateToScheduleDetail(page, scheduleName);
     
-    // Add an entry by clicking the dashed "Add entry" area for Monday
-    await page.locator('text=Monday').locator('..').locator('text=+ Add entry').click();
-    await expect(page.getByTestId('add-entry-modal')).toBeVisible();
+    // Add an entry
+    const entry: ScheduleEntryDetails = {
+      name: 'Morning Meeting',
+      day: 'Monday',
+      startTime: '09:00',
+      duration: 60
+    };
+    await addScheduleEntry(page, entry);
     
-    // Fill in entry details using test IDs
-    await page.getByTestId('add-entry-name-input').fill('Morning Meeting');
-    await page.getByTestId('add-entry-starttime-input').fill('09:00');
-    await page.getByTestId('add-entry-duration-input').fill('60');
-    await page.getByTestId('add-entry-day-select').selectOption('1'); // Monday = 1
-    
-    // Submit entry
-    await page.getByTestId('add-entry-submit-button').click();
-    
-    // Wait for modal to close and verify entry appears in weekly view
-    await expect(page.getByTestId('add-entry-modal')).not.toBeVisible();
-    await expect(page.getByText('Morning Meeting')).toBeVisible();
+    // Verify entry appears in weekly view
+    await expect(page.locator('text=Monday').locator('..').getByText('Morning Meeting')).toBeVisible();
   });
 
   test('should delete schedule entry', async ({ page }) => {
-    // Create schedule with entry via API
-    const scheduleResponse = await page.request.post('/api/schedules', {
-      data: {
-        name: 'Test Schedule',
-        timeZone: 'America/New_York'
-      }
-    });
-    expect(scheduleResponse.ok()).toBeTruthy();
-    const schedule = await scheduleResponse.json();
-    expect(schedule.id).toBeDefined();
+    // Create a schedule via UI
+    const scheduleName = await createScheduleViaUI(page, 'Test Schedule');
     
-    // Add entry via UI to ensure proper phase association
-    await page.goto(`/schedules/${schedule.id}`);
+    // Navigate to schedule detail
+    await navigateToScheduleDetail(page, scheduleName);
     
     // Add an entry first
-    await page.locator('text=Tuesday').locator('..').locator('text=+ Add entry').click();
-    await expect(page.getByTestId('add-entry-modal')).toBeVisible();
+    const entry: ScheduleEntryDetails = {
+      name: 'Test Entry',
+      day: 'Tuesday',
+      startTime: '10:00',
+      duration: 30
+    };
+    await addScheduleEntry(page, entry);
     
-    await page.getByTestId('add-entry-name-input').fill('Test Entry');
-    await page.getByTestId('add-entry-starttime-input').fill('10:00');
-    await page.getByTestId('add-entry-duration-input').fill('30');
-    await page.getByTestId('add-entry-day-select').selectOption('2'); // Tuesday = 2
-    await page.getByTestId('add-entry-submit-button').click();
-    
-    await expect(page.getByTestId('add-entry-modal')).not.toBeVisible();
-    await expect(page.getByText('Test Entry')).toBeVisible();
-    
-    // Now delete the entry by clicking on it
-    await page.getByText('Test Entry').click();
-    await expect(page.getByTestId('edit-entry-modal')).toBeVisible();
+    // Verify entry was added in the weekly grid
+    await expect(page.locator('text=Tuesday').locator('..').getByText('Test Entry')).toBeVisible();
     
     // Delete the entry
-    await page.getByTestId('edit-entry-delete-button').click();
+    await deleteScheduleEntry(page, 'Test Entry');
     
-    // Verify entry is removed
-    await expect(page.getByTestId('edit-entry-modal')).not.toBeVisible();
-    await expect(page.getByText('Test Entry')).not.toBeVisible();
+    // Verify entry is removed from the weekly grid
+    await expect(page.locator('text=Tuesday').locator('..').getByText('Test Entry')).not.toBeVisible();
+  });
+
+  test('should edit schedule entry', async ({ page }) => {
+    // Create a schedule via UI
+    const scheduleName = await createScheduleViaUI(page, 'Test Schedule');
+    
+    // Navigate to schedule detail
+    await navigateToScheduleDetail(page, scheduleName);
+    
+    // Add an entry first
+    const originalEntry: ScheduleEntryDetails = {
+      name: 'Original Entry',
+      day: 'Wednesday',
+      startTime: '14:00',
+      duration: 45
+    };
+    await addScheduleEntry(page, originalEntry);
+    
+    // Edit the entry
+    await editScheduleEntry(page, 'Original Entry', {
+      name: 'Updated Entry',
+      startTime: '15:30',
+      duration: 90
+    });
+    
+    // Verify the entry was updated in the weekly grid
+    await expect(page.locator('text=Wednesday').locator('..').getByText('Updated Entry')).toBeVisible();
+    await expect(page.locator('text=Wednesday').locator('..').getByText('Original Entry')).not.toBeVisible();
   });
 });
