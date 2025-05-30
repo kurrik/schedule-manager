@@ -36,7 +36,8 @@
     {
       "binding": "DB",
       "database_name": "schedule-manager",
-      "database_id": "46e6f09b-0b12-4e86-9edc-7e0265e0038f"
+      "database_id": "46e6f09b-0b12-4e86-9edc-7e0265e0038f",
+      "migrations_dir": "migrations"
     }
   ],
   /**
