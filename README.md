@@ -34,11 +34,17 @@ Start the development server:
 npm run dev
 ```
 
+## DB migrations
+
+```bash
+npx wrangler@latest d1 migrations create
+```
+
 # Prod deploy
 
 ```bash
-npx wrangler secret put GOOGLE_CLIENT_ID
-npx wrangler secret put GOOGLE_CLIENT_SECRET
+npx wrangler@latest secret put GOOGLE_CLIENT_ID
+npx wrangler@latest secret put GOOGLE_CLIENT_SECRET
 
 npm run deploy
 ```
