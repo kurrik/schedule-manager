@@ -383,6 +383,153 @@ export async function deleteSchedule(c: Context<AppContext>) {
   }
 }
 
+/**
+ * Add a user to a schedule's shared users
+ */
+export async function addSharedUser(c: Context<AppContext>) {
+  const user = c.get('user');
+  if (!user) {
+    return c.json({ error: 'Not authenticated' }, 401);
+  }
+
+  const { id } = c.req.param();
+  if (!id) {
+    return c.json({ error: 'Schedule ID is required' }, 400);
+  }
+
+  const body = await c.req.json<{ email: string }>();
+  const { email } = body;
+
+  if (!email) {
+    return c.json({ error: 'Email is required' }, 400);
+  }
+
+  const uow = new D1UnitOfWork(c.env.DB);
+  try {
+    const schedule = await uow.schedules.findById(id);
+    if (!schedule) {
+      return c.json({ error: 'Schedule not found' }, 404);
+    }
+
+    // Only the owner can manage sharing
+    if (schedule.ownerId !== user.id) {
+      return c.json({ error: 'Only the schedule owner can manage sharing' }, 403);
+    }
+
+    // Find the user by email
+    const sharedUser = await uow.users.findByEmail(email);
+    if (!sharedUser) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    // Don't allow sharing with the owner
+    if (sharedUser.id === schedule.ownerId) {
+      return c.json({ error: 'Cannot share with the schedule owner' }, 400);
+    }
+
+    // Check if user is already shared
+    if (schedule.sharedUserIds.includes(sharedUser.id)) {
+      return c.json({ error: 'User is already shared with this schedule' }, 400);
+    }
+
+    schedule.shareWithUser(sharedUser.id);
+    await uow.schedules.update(schedule);
+    await uow.commit();
+    
+    return c.json({ schedule: schedule.toJSON() });
+  } catch (error) {
+    console.error('Error adding shared user:', error);
+    return c.json({ error: 'Failed to add shared user' }, 500);
+  }
+}
+
+/**
+ * Remove a user from a schedule's shared users
+ */
+export async function removeSharedUser(c: Context<AppContext>) {
+  const user = c.get('user');
+  if (!user) {
+    return c.json({ error: 'Not authenticated' }, 401);
+  }
+
+  const { id, userId } = c.req.param();
+  if (!id || !userId) {
+    return c.json({ error: 'Schedule ID and user ID are required' }, 400);
+  }
+
+  const uow = new D1UnitOfWork(c.env.DB);
+  try {
+    const schedule = await uow.schedules.findById(id);
+    if (!schedule) {
+      return c.json({ error: 'Schedule not found' }, 404);
+    }
+
+    // Only the owner can manage sharing
+    if (schedule.ownerId !== user.id) {
+      return c.json({ error: 'Only the schedule owner can manage sharing' }, 403);
+    }
+
+    schedule.unshareWithUser(userId);
+    await uow.schedules.update(schedule);
+    await uow.commit();
+    
+    return c.json({ schedule: schedule.toJSON() });
+  } catch (error) {
+    console.error('Error removing shared user:', error);
+    return c.json({ error: 'Failed to remove shared user' }, 500);
+  }
+}
+
+/**
+ * Get users who have access to a schedule (owner + shared users)
+ */
+export async function getScheduleUsers(c: Context<AppContext>) {
+  const user = c.get('user');
+  if (!user) {
+    return c.json({ error: 'Not authenticated' }, 401);
+  }
+
+  const { id } = c.req.param();
+  if (!id) {
+    return c.json({ error: 'Schedule ID is required' }, 400);
+  }
+
+  const uow = new D1UnitOfWork(c.env.DB);
+  try {
+    const schedule = await uow.schedules.findById(id);
+    if (!schedule) {
+      return c.json({ error: 'Schedule not found' }, 404);
+    }
+
+    if (!schedule.isAccessibleBy(user.id)) {
+      return c.json({ error: 'Not authorized to view this schedule' }, 403);
+    }
+
+    // Get owner details
+    const owner = await uow.users.findById(schedule.ownerId);
+    if (!owner) {
+      return c.json({ error: 'Schedule owner not found' }, 500);
+    }
+
+    // Get shared users details
+    const sharedUsers = [];
+    for (const userId of schedule.sharedUserIds) {
+      const sharedUser = await uow.users.findById(userId);
+      if (sharedUser) {
+        sharedUsers.push(sharedUser.toJSON());
+      }
+    }
+
+    return c.json({ 
+      owner: owner.toJSON(), 
+      sharedUsers 
+    });
+  } catch (error) {
+    console.error('Error fetching schedule users:', error);
+    return c.json({ error: 'Failed to fetch schedule users' }, 500);
+  }
+}
+
 export const scheduleHandlers = {
   getSchedules,
   createSchedule,
@@ -392,4 +539,7 @@ export const scheduleHandlers = {
   addScheduleEntry,
   updateScheduleEntry,
   deleteScheduleEntry,
+  addSharedUser,
+  removeSharedUser,
+  getScheduleUsers,
 };

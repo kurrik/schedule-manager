@@ -1,6 +1,6 @@
 import { Component, createSignal, onMount, onCleanup, Show, For, createEffect } from 'solid-js';
 import { useParams, A, useNavigate } from '@solidjs/router';
-import { useApi, type Schedule, type SchedulePhase, type ScheduleEntry, type ScheduleOverride, type MaterializedEntry } from '../../services/api';
+import { useApi, type Schedule, type SchedulePhase, type ScheduleEntry, type ScheduleOverride, type MaterializedEntry, type User } from '../../services/api';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 const ScheduleDetail: Component = () => {
@@ -57,6 +57,10 @@ const ScheduleDetail: Component = () => {
     durationMinutes: 60,
   });
   const [showModifyModal, setShowModifyModal] = createSignal(false);
+  const [showSharingModal, setShowSharingModal] = createSignal(false);
+  const [scheduleUsers, setScheduleUsers] = createSignal<{ owner: User; sharedUsers: User[] } | null>(null);
+  const [shareEmail, setShareEmail] = createSignal('');
+  const [currentUser, setCurrentUser] = createSignal<{ name: string; email: string } | null>(null);
 
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -71,6 +75,24 @@ const ScheduleDetail: Component = () => {
       setError('Failed to load schedule');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadCurrentUser = async () => {
+    try {
+      const userData = await api.getCurrentUser();
+      setCurrentUser(userData);
+    } catch (err) {
+      console.error('Failed to load current user:', err);
+    }
+  };
+
+  const loadScheduleUsers = async () => {
+    try {
+      const data = await api.getScheduleUsers(params.id);
+      setScheduleUsers(data);
+    } catch (err) {
+      console.error('Failed to load schedule users:', err);
     }
   };
 
@@ -133,12 +155,15 @@ const ScheduleDetail: Component = () => {
       } else if (showSplitPhaseModal()) {
         setShowSplitPhaseModal(false);
         setSplittingPhase(null);
+      } else if (showSharingModal()) {
+        setShowSharingModal(false);
       }
     }
   };
 
   onMount(() => {
     loadSchedule();
+    loadCurrentUser();
     document.addEventListener('keydown', handleKeyDown);
   });
 
@@ -146,6 +171,7 @@ const ScheduleDetail: Component = () => {
   createEffect(() => {
     if (schedule()) {
       loadOverridesForMonth();
+      loadScheduleUsers();
     }
   });
 
@@ -166,6 +192,53 @@ const ScheduleDetail: Component = () => {
     return `${displayHours}:${mins.toString().padStart(2, '0')} ${ampm}`;
   };
 
+  const openSharingModal = () => {
+    setShowSharingModal(true);
+    loadScheduleUsers();
+  };
+
+  const handleAddSharedUser = async (e: Event) => {
+    e.preventDefault();
+    if (!schedule() || !shareEmail().trim()) return;
+
+    try {
+      setIsLoading(true);
+      await api.addSharedUser(schedule()!.id, shareEmail().trim());
+      setShareEmail('');
+      await loadSchedule(); // Reload to get updated schedule
+      await loadScheduleUsers(); // Reload users
+    } catch (err) {
+      console.error('Failed to add shared user:', err);
+      setError('Failed to add shared user');
+      setIsLoading(false);
+    }
+  };
+
+  const handleRemoveSharedUser = async (userId: string) => {
+    if (!schedule() || !confirm('Are you sure you want to remove access for this user?')) return;
+
+    try {
+      setIsLoading(true);
+      await api.removeSharedUser(schedule()!.id, userId);
+      await loadSchedule(); // Reload to get updated schedule
+      await loadScheduleUsers(); // Reload users
+    } catch (err) {
+      console.error('Failed to remove shared user:', err);
+      setError('Failed to remove shared user');
+      setIsLoading(false);
+    }
+  };
+
+  const isCurrentUserOwner = () => {
+    const sched = schedule();
+    const user = currentUser();
+    if (!sched || !user) return false;
+    
+    const users = scheduleUsers();
+    if (!users) return false;
+    
+    return users.owner.email === user.email;
+  };
 
   const handleAddEntry = async (e: Event) => {
     e.preventDefault();
@@ -815,13 +888,24 @@ const ScheduleDetail: Component = () => {
                 >
                   ✏️
                 </button>
-                <button 
-                  class="btn btn-ghost btn-sm text-error" 
-                  onClick={() => setShowDeleteScheduleModal(true)}
-                  title="Delete schedule"
-                >
-                  🗑️
-                </button>
+                <Show when={isCurrentUserOwner()}>
+                  <button 
+                    class="btn btn-ghost btn-sm text-info" 
+                    onClick={openSharingModal}
+                    title="Manage sharing"
+                  >
+                    👥
+                  </button>
+                </Show>
+                <Show when={isCurrentUserOwner()}>
+                  <button 
+                    class="btn btn-ghost btn-sm text-error" 
+                    onClick={() => setShowDeleteScheduleModal(true)}
+                    title="Delete schedule"
+                  >
+                    🗑️
+                  </button>
+                </Show>
               </div>
               <p class="text-gray-600">Time Zone: {schedule()?.timeZone}</p>
             </div>
@@ -913,6 +997,7 @@ const ScheduleDetail: Component = () => {
               )}
             </For>
           </div>
+
 
           {/* iCal Feed Section */}
           <div class="bg-base-200 rounded-lg p-6 mb-8">
@@ -1624,6 +1709,111 @@ const ScheduleDetail: Component = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </Show>
+
+        {/* Sharing Modal */}
+        <Show when={showSharingModal()}>
+          <div class="modal modal-open">
+            <div class="modal-box max-w-2xl">
+              <h2 class="font-bold text-lg mb-4">Manage Schedule Sharing</h2>
+              
+              <Show when={scheduleUsers()}>
+                <div class="space-y-4">
+                  {/* Owner */}
+                  <div class="flex items-center justify-between p-3 bg-base-200 rounded">
+                    <div class="flex items-center gap-3">
+                      <div class="avatar">
+                        <div class="w-10 h-10 rounded-full bg-primary text-primary-content flex items-center justify-center text-sm font-semibold">
+                          {scheduleUsers()?.owner.displayName.charAt(0).toUpperCase()}
+                        </div>
+                      </div>
+                      <div>
+                        <div class="font-medium">{scheduleUsers()?.owner.displayName}</div>
+                        <div class="text-sm text-gray-600">{scheduleUsers()?.owner.email}</div>
+                      </div>
+                    </div>
+                    <div class="badge badge-primary">Owner</div>
+                  </div>
+
+                  {/* Shared Users */}
+                  <For each={scheduleUsers()?.sharedUsers || []}>
+                    {(user) => (
+                      <div class="flex items-center justify-between p-3 bg-base-200 rounded">
+                        <div class="flex items-center gap-3">
+                          <div class="avatar">
+                            <div class="w-10 h-10 rounded-full bg-secondary text-secondary-content flex items-center justify-center text-sm font-semibold">
+                              {user.displayName.charAt(0).toUpperCase()}
+                            </div>
+                          </div>
+                          <div>
+                            <div class="font-medium">{user.displayName}</div>
+                            <div class="text-sm text-gray-600">{user.email}</div>
+                          </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                          <div class="badge badge-outline">Editor</div>
+                          <Show when={isCurrentUserOwner()}>
+                            <button 
+                              class="btn btn-ghost btn-sm text-error"
+                              onClick={() => handleRemoveSharedUser(user.id)}
+                              title="Remove access"
+                            >
+                              ✕
+                            </button>
+                          </Show>
+                        </div>
+                      </div>
+                    )}
+                  </For>
+
+                  {/* Add User Form (Owner Only) */}
+                  <Show when={isCurrentUserOwner()}>
+                    <div class="divider">Add New User</div>
+                    <form onSubmit={handleAddSharedUser} class="flex gap-2">
+                      <input
+                        class="input input-bordered flex-1"
+                        type="email"
+                        placeholder="Enter email address to share with..."
+                        value={shareEmail()}
+                        onInput={(e) => setShareEmail(e.currentTarget.value)}
+                        required
+                      />
+                      <button type="submit" class="btn btn-primary">
+                        Add User
+                      </button>
+                    </form>
+                    <p class="text-sm text-gray-600 mt-2">
+                      Users you share with will be able to view and edit this schedule.
+                    </p>
+                  </Show>
+
+                  <Show when={!isCurrentUserOwner()}>
+                    <div class="bg-info/20 p-3 rounded">
+                      <p class="text-sm">
+                        ℹ️ You have editor access to this schedule. Only the owner can manage sharing.
+                      </p>
+                    </div>
+                  </Show>
+                </div>
+              </Show>
+              
+              <Show when={!scheduleUsers()}>
+                <div class="flex justify-center py-8">
+                  <LoadingSpinner fullScreen={false} />
+                </div>
+              </Show>
+
+              <div class="flex justify-end mt-6">
+                <button 
+                  type="button" 
+                  class="btn btn-ghost" 
+                  onClick={() => setShowSharingModal(false)}
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </Show>

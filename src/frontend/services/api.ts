@@ -52,6 +52,13 @@ export interface SchedulePhase {
   entries: ScheduleEntry[];
 }
 
+export interface User {
+  id: string;
+  email: string;
+  displayName: string;
+  profileImageUrl: string;
+}
+
 export interface Schedule {
   id: string;
   name: string;
@@ -279,6 +286,24 @@ export function useApi() {
       return fetchJson<{ phase: SchedulePhase }>(`/schedules/${scheduleId}/phases/${phaseId}/entries`, {
         method: 'POST',
         body: JSON.stringify(entry),
+      });
+    },
+    
+    // Sharing
+    async getScheduleUsers(scheduleId: string): Promise<{ owner: User; sharedUsers: User[] }> {
+      return fetchJson(`/schedules/${scheduleId}/users`);
+    },
+
+    async addSharedUser(scheduleId: string, email: string): Promise<{ schedule: Schedule }> {
+      return fetchJson(`/schedules/${scheduleId}/users`, {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+      });
+    },
+
+    async removeSharedUser(scheduleId: string, userId: string): Promise<{ schedule: Schedule }> {
+      return fetchJson(`/schedules/${scheduleId}/users/${userId}`, {
+        method: 'DELETE',
       });
     },
     

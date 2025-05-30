@@ -92,6 +92,9 @@ app.delete('/api/schedules/:id', scheduleHandlers.deleteSchedule);
 app.post('/api/schedules/:id/entries', scheduleHandlers.addScheduleEntry);
 app.put('/api/schedules/:id/entries/:index', scheduleHandlers.updateScheduleEntry);
 app.delete('/api/schedules/:id/entries/:index', scheduleHandlers.deleteScheduleEntry);
+app.get('/api/schedules/:id/users', scheduleHandlers.getScheduleUsers);
+app.post('/api/schedules/:id/users', scheduleHandlers.addSharedUser);
+app.delete('/api/schedules/:id/users/:userId', scheduleHandlers.removeSharedUser);
 
 // Override routes
 app.get('/api/schedules/:scheduleId/overrides', overrideHandlers.getScheduleOverrides);
