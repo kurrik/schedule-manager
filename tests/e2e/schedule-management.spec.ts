@@ -10,24 +10,20 @@ test.describe('Schedule Management', () => {
 
   test('should create a new schedule', async ({ page }) => {
     // Click create schedule button
-    await page.getByRole('button', { name: '+ New Schedule' }).click();
+    await page.getByTestId('new-schedule-button').click();
     
     // Wait for modal to appear
-    await expect(page.getByRole('heading', { name: 'Create New Schedule' })).toBeVisible();
+    await expect(page.getByTestId('create-schedule-modal')).toBeVisible();
     
-    // Fill in schedule details - there are only 2 textboxes in the modal
-    const textboxes = page.getByRole('textbox');
-    await expect(textboxes).toHaveCount(2);
-    
-    // First textbox is name, second is timezone
-    await textboxes.nth(0).fill('Test Schedule');
-    await textboxes.nth(1).fill('America/New_York');
+    // Fill in schedule details using test IDs
+    await page.getByTestId('schedule-name-input').fill('Test Schedule');
+    await page.getByTestId('schedule-timezone-input').fill('America/New_York');
     
     // Submit form
-    await page.getByRole('button', { name: 'Create' }).click();
+    await page.getByTestId('create-schedule-submit-button').click();
     
-    // Wait for modal to close and schedule to appear
-    await expect(page.getByRole('heading', { name: 'Create New Schedule' })).not.toBeVisible();
+    // Wait for modal to close and schedule to appear in list
+    await expect(page.getByTestId('create-schedule-modal')).not.toBeVisible();
     await expect(page.getByText('Test Schedule')).toBeVisible();
   });
 
@@ -36,7 +32,7 @@ test.describe('Schedule Management', () => {
     const response = await page.request.post('/api/schedules', {
       data: {
         name: 'Original Schedule',
-        timezone: 'America/New_York'
+        timeZone: 'America/New_York'
       }
     });
     expect(response.ok()).toBeTruthy();
@@ -46,13 +42,16 @@ test.describe('Schedule Management', () => {
     // Navigate to schedule detail
     await page.goto(`/schedules/${schedule.id}`);
     
-    // Edit schedule name
-    await page.click('button:has-text("Edit")');
-    await page.fill('input[name="name"]', 'Updated Schedule');
-    await page.click('button:has-text("Save")');
+    // Edit schedule name using test IDs
+    await page.getByTestId('edit-schedule-button').click();
+    await expect(page.getByTestId('edit-schedule-modal')).toBeVisible();
     
-    // Verify updated name
-    await expect(page.locator('text=Updated Schedule')).toBeVisible();
+    await page.getByTestId('edit-schedule-name-input').fill('Updated Schedule');
+    await page.getByTestId('edit-schedule-save-button').click();
+    
+    // Wait for modal to close and verify updated name
+    await expect(page.getByTestId('edit-schedule-modal')).not.toBeVisible();
+    await expect(page.getByText('Updated Schedule')).toBeVisible();
   });
 
   test('should add schedule entry', async ({ page }) => {
@@ -60,7 +59,7 @@ test.describe('Schedule Management', () => {
     const response = await page.request.post('/api/schedules', {
       data: {
         name: 'Test Schedule',
-        timezone: 'America/New_York'
+        timeZone: 'America/New_York'
       }
     });
     expect(response.ok()).toBeTruthy();
@@ -70,52 +69,61 @@ test.describe('Schedule Management', () => {
     // Navigate to schedule detail
     await page.goto(`/schedules/${schedule.id}`);
     
-    // Add an entry
-    await page.click('text=Add Entry');
-    await page.fill('input[name="name"]', 'Morning Meeting');
-    await page.fill('input[name="startTime"]', '09:00');
-    await page.fill('input[name="duration"]', '60');
-    await page.selectOption('select[name="day"]', 'Monday');
+    // Add an entry by clicking the dashed "Add entry" area for Monday
+    await page.locator('text=Monday').locator('..').locator('text=+ Add entry').click();
+    await expect(page.getByTestId('add-entry-modal')).toBeVisible();
+    
+    // Fill in entry details using test IDs
+    await page.getByTestId('add-entry-name-input').fill('Morning Meeting');
+    await page.getByTestId('add-entry-starttime-input').fill('09:00');
+    await page.getByTestId('add-entry-duration-input').fill('60');
+    await page.getByTestId('add-entry-day-select').selectOption('1'); // Monday = 1
     
     // Submit entry
-    await page.click('button:has-text("Add Entry")');
+    await page.getByTestId('add-entry-submit-button').click();
     
-    // Verify entry appears in weekly view
-    await expect(page.locator('text=Morning Meeting')).toBeVisible();
+    // Wait for modal to close and verify entry appears in weekly view
+    await expect(page.getByTestId('add-entry-modal')).not.toBeVisible();
+    await expect(page.getByText('Morning Meeting')).toBeVisible();
   });
 
   test('should delete schedule entry', async ({ page }) => {
-    // Create schedule with entry
+    // Create schedule with entry via API
     const scheduleResponse = await page.request.post('/api/schedules', {
       data: {
         name: 'Test Schedule',
-        timezone: 'America/New_York'
+        timeZone: 'America/New_York'
       }
     });
     expect(scheduleResponse.ok()).toBeTruthy();
     const schedule = await scheduleResponse.json();
     expect(schedule.id).toBeDefined();
     
-    const entryResponse = await page.request.post(`/api/schedules/${schedule.id}/entries`, {
-      data: {
-        name: 'Test Entry',
-        startTime: '10:00',
-        duration: 30,
-        day: 'Tuesday'
-      }
-    });
-    expect(entryResponse.ok()).toBeTruthy();
-    
-    // Navigate to schedule
+    // Add entry via UI to ensure proper phase association
     await page.goto(`/schedules/${schedule.id}`);
     
-    // Delete the entry
-    await page.locator('text=Test Entry').locator('..').locator('button:has-text("Delete")').click();
+    // Add an entry first
+    await page.locator('text=Tuesday').locator('..').locator('text=+ Add entry').click();
+    await expect(page.getByTestId('add-entry-modal')).toBeVisible();
     
-    // Confirm deletion
-    await page.click('button:has-text("Confirm")');
+    await page.getByTestId('add-entry-name-input').fill('Test Entry');
+    await page.getByTestId('add-entry-starttime-input').fill('10:00');
+    await page.getByTestId('add-entry-duration-input').fill('30');
+    await page.getByTestId('add-entry-day-select').selectOption('2'); // Tuesday = 2
+    await page.getByTestId('add-entry-submit-button').click();
+    
+    await expect(page.getByTestId('add-entry-modal')).not.toBeVisible();
+    await expect(page.getByText('Test Entry')).toBeVisible();
+    
+    // Now delete the entry by clicking on it
+    await page.getByText('Test Entry').click();
+    await expect(page.getByTestId('edit-entry-modal')).toBeVisible();
+    
+    // Delete the entry
+    await page.getByTestId('edit-entry-delete-button').click();
     
     // Verify entry is removed
-    await expect(page.locator('text=Test Entry')).not.toBeVisible();
+    await expect(page.getByTestId('edit-entry-modal')).not.toBeVisible();
+    await expect(page.getByText('Test Entry')).not.toBeVisible();
   });
 });

@@ -66,29 +66,29 @@ const ScheduleList: Component = () => {
       <div class="container mx-auto py-8">
         <div class="flex justify-between items-center mb-6">
           <h1 class="text-2xl font-bold">Schedules</h1>
-          <button class="btn btn-primary" onClick={() => setShowCreateModal(true)}>
+          <button class="btn btn-primary" data-testid="new-schedule-button" onClick={() => setShowCreateModal(true)}>
             + New Schedule
           </button>
         </div>
         <For each={schedules()}>{(schedule) => (
-          <div class="card bg-base-200 shadow mb-4 p-4 flex flex-col md:flex-row md:items-center justify-between">
+          <div class="card bg-base-200 shadow mb-4 p-4 flex flex-col md:flex-row md:items-center justify-between" data-testid={`schedule-item-${schedule.id}`}>
             <div>
-              <div class="font-semibold text-lg">{schedule.name}</div>
+              <div class="font-semibold text-lg" data-testid={`schedule-name-${schedule.id}`}>{schedule.name}</div>
               <div class="text-sm text-gray-500">Time Zone: {schedule.timeZone}</div>
               {schedule.icalUrl && (
                 <div class="text-xs mt-1">
-                  <A href={schedule.icalUrl} target="_blank" class="link">iCal Feed</A>
+                  <A href={schedule.icalUrl} target="_blank" class="link" data-testid={`schedule-ical-link-${schedule.id}`}>iCal Feed</A>
                 </div>
               )}
             </div>
-            <A href={`/schedule/${schedule.id}`} class="btn btn-accent mt-2 md:mt-0">
+            <A href={`/schedule/${schedule.id}`} class="btn btn-accent mt-2 md:mt-0" data-testid={`schedule-view-button-${schedule.id}`}>
               View
             </A>
           </div>
         )}</For>
         {/* Modal for creating a new schedule */}
         <Show when={showCreateModal()}>
-          <div class="modal modal-open">
+          <div class="modal modal-open" data-testid="create-schedule-modal">
             <div class="modal-box">
               <h2 class="font-bold text-lg mb-4">Create New Schedule</h2>
               <form onSubmit={handleCreateSchedule}>
@@ -96,6 +96,7 @@ const ScheduleList: Component = () => {
                   <label class="block mb-1">Name</label>
                   <input
                     class="input input-bordered w-full"
+                    data-testid="schedule-name-input"
                     value={newSchedule().name}
                     onInput={(e) => setNewSchedule({ ...newSchedule(), name: e.currentTarget.value })}
                     required
@@ -105,16 +106,17 @@ const ScheduleList: Component = () => {
                   <label class="block mb-1">Time Zone</label>
                   <input
                     class="input input-bordered w-full"
+                    data-testid="schedule-timezone-input"
                     value={newSchedule().timeZone}
                     onInput={(e) => setNewSchedule({ ...newSchedule(), timeZone: e.currentTarget.value })}
                     required
                   />
                 </div>
                 <div class="flex justify-end">
-                  <button type="button" class="btn btn-ghost mr-2" onClick={() => setShowCreateModal(false)}>
+                  <button type="button" class="btn btn-ghost mr-2" data-testid="cancel-button" onClick={() => setShowCreateModal(false)}>
                     Cancel
                   </button>
-                  <button type="submit" class="btn btn-primary">
+                  <button type="submit" class="btn btn-primary" data-testid="create-schedule-submit-button">
                     Create
                   </button>
                 </div>

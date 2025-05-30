@@ -894,6 +894,7 @@ const ScheduleDetail: Component = () => {
                 <h1 class="text-3xl font-bold">{schedule()?.name}</h1>
                 <button 
                   class="btn btn-ghost btn-sm" 
+                  data-testid="edit-schedule-button"
                   onClick={openEditScheduleModal}
                   title="Edit schedule"
                 >
@@ -1122,7 +1123,7 @@ const ScheduleDetail: Component = () => {
 
         {/* Add Entry Modal */}
         <Show when={showAddEntryModal()}>
-          <div class="modal modal-open">
+          <div class="modal modal-open" data-testid="add-entry-modal">
             <div class="modal-box">
               <h2 class="font-bold text-lg mb-4">
                 Add Entry to {addingToPhase()?.name || 'Phase'}
@@ -1132,6 +1133,7 @@ const ScheduleDetail: Component = () => {
                   <label class="block mb-1">Name</label>
                   <input
                     class="input input-bordered w-full"
+                    data-testid="add-entry-name-input"
                     value={entryForm().name}
                     onInput={(e) => setEntryForm({ ...entryForm(), name: e.currentTarget.value })}
                     required
@@ -1141,6 +1143,7 @@ const ScheduleDetail: Component = () => {
                   <label class="block mb-1">Day of Week</label>
                   <select
                     class="select select-bordered w-full"
+                    data-testid="add-entry-day-select"
                     value={entryForm().dayOfWeek}
                     onChange={(e) => setEntryForm({ ...entryForm(), dayOfWeek: parseInt(e.currentTarget.value) })}
                   >
@@ -1153,6 +1156,7 @@ const ScheduleDetail: Component = () => {
                   <label class="block mb-1">Start Time</label>
                   <input
                     class="input input-bordered w-full"
+                    data-testid="add-entry-starttime-input"
                     type="time"
                     value={`${Math.floor(entryForm().startTimeMinutes / 60).toString().padStart(2, '0')}:${(entryForm().startTimeMinutes % 60).toString().padStart(2, '0')}`}
                     onInput={(e) => {
@@ -1166,6 +1170,7 @@ const ScheduleDetail: Component = () => {
                   <label class="block mb-1">Duration (minutes)</label>
                   <input
                     class="input input-bordered w-full"
+                    data-testid="add-entry-duration-input"
                     type="number"
                     step="15"
                     min="15"
@@ -1175,13 +1180,13 @@ const ScheduleDetail: Component = () => {
                   />
                 </div>
                 <div class="flex justify-end">
-                  <button type="button" class="btn btn-ghost mr-2" onClick={() => {
+                  <button type="button" class="btn btn-ghost mr-2" data-testid="add-entry-cancel-button" onClick={() => {
                     setShowAddEntryModal(false);
                     setAddingToPhase(null);
                   }}>
                     Cancel
                   </button>
-                  <button type="submit" class="btn btn-primary">
+                  <button type="submit" class="btn btn-primary" data-testid="add-entry-submit-button">
                     Add Entry
                   </button>
                 </div>
@@ -1192,7 +1197,7 @@ const ScheduleDetail: Component = () => {
 
         {/* Edit Entry Modal */}
         <Show when={showEditModal()}>
-          <div class="modal modal-open">
+          <div class="modal modal-open" data-testid="edit-entry-modal">
             <div class="modal-box">
               <h2 class="font-bold text-lg mb-4">Edit Schedule Entry</h2>
               <form onSubmit={handleEditEntry}>
@@ -1200,6 +1205,7 @@ const ScheduleDetail: Component = () => {
                   <label class="block mb-1">Name</label>
                   <input
                     class="input input-bordered w-full"
+                    data-testid="edit-entry-name-input"
                     value={entryForm().name}
                     onInput={(e) => setEntryForm({ ...entryForm(), name: e.currentTarget.value })}
                     required
@@ -1209,6 +1215,7 @@ const ScheduleDetail: Component = () => {
                   <label class="block mb-1">Day of Week</label>
                   <select
                     class="select select-bordered w-full"
+                    data-testid="edit-entry-day-select"
                     value={entryForm().dayOfWeek}
                     onChange={(e) => setEntryForm({ ...entryForm(), dayOfWeek: parseInt(e.currentTarget.value) })}
                   >
@@ -1221,6 +1228,7 @@ const ScheduleDetail: Component = () => {
                   <label class="block mb-1">Start Time</label>
                   <input
                     class="input input-bordered w-full"
+                    data-testid="edit-entry-starttime-input"
                     type="time"
                     value={`${Math.floor(entryForm().startTimeMinutes / 60).toString().padStart(2, '0')}:${(entryForm().startTimeMinutes % 60).toString().padStart(2, '0')}`}
                     onInput={(e) => {
@@ -1234,6 +1242,7 @@ const ScheduleDetail: Component = () => {
                   <label class="block mb-1">Duration (minutes)</label>
                   <input
                     class="input input-bordered w-full"
+                    data-testid="edit-entry-duration-input"
                     type="number"
                     step="15"
                     min="15"
@@ -1243,7 +1252,7 @@ const ScheduleDetail: Component = () => {
                   />
                 </div>
                 <div class="flex justify-end">
-                  <button type="button" class="btn btn-ghost mr-2" onClick={() => {
+                  <button type="button" class="btn btn-ghost mr-2" data-testid="edit-entry-cancel-button" onClick={() => {
                     setShowEditModal(false);
                     setEditingEntryId(null);
                     setEditingEntryPhase(null);
@@ -1253,13 +1262,14 @@ const ScheduleDetail: Component = () => {
                   <button 
                     type="button" 
                     class="btn btn-error mr-2" 
+                    data-testid="edit-entry-delete-button"
                     onClick={() => {
                       handleDeleteEntry();
                     }}
                   >
                     Delete
                   </button>
-                  <button type="submit" class="btn btn-primary">
+                  <button type="submit" class="btn btn-primary" data-testid="edit-entry-save-button">
                     Save Changes
                   </button>
                 </div>
@@ -1270,7 +1280,7 @@ const ScheduleDetail: Component = () => {
 
         {/* Edit Schedule Modal */}
         <Show when={showEditScheduleModal()}>
-          <div class="modal modal-open">
+          <div class="modal modal-open" data-testid="edit-schedule-modal">
             <div class="modal-box">
               <h2 class="font-bold text-lg mb-4">Edit Schedule</h2>
               <form onSubmit={handleUpdateSchedule}>
@@ -1278,6 +1288,7 @@ const ScheduleDetail: Component = () => {
                   <label class="block mb-1">Name</label>
                   <input
                     class="input input-bordered w-full"
+                    data-testid="edit-schedule-name-input"
                     value={scheduleForm().name}
                     onInput={(e) => setScheduleForm({ ...scheduleForm(), name: e.currentTarget.value })}
                     required
@@ -1287,6 +1298,7 @@ const ScheduleDetail: Component = () => {
                   <label class="block mb-1">Time Zone</label>
                   <input
                     class="input input-bordered w-full"
+                    data-testid="edit-schedule-timezone-input"
                     value={scheduleForm().timeZone}
                     onInput={(e) => setScheduleForm({ ...scheduleForm(), timeZone: e.currentTarget.value })}
                     placeholder="e.g., America/Los_Angeles"
@@ -1297,10 +1309,10 @@ const ScheduleDetail: Component = () => {
                   </div>
                 </div>
                 <div class="flex justify-end">
-                  <button type="button" class="btn btn-ghost mr-2" onClick={() => setShowEditScheduleModal(false)}>
+                  <button type="button" class="btn btn-ghost mr-2" data-testid="edit-schedule-cancel-button" onClick={() => setShowEditScheduleModal(false)}>
                     Cancel
                   </button>
-                  <button type="submit" class="btn btn-primary">
+                  <button type="submit" class="btn btn-primary" data-testid="edit-schedule-save-button">
                     Save Changes
                   </button>
                 </div>

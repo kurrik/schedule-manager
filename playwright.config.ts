@@ -65,18 +65,11 @@ export default defineConfig({
   ],
 
   /* Run your local dev server before starting the tests */
-  webServer: [
-    {
-      command: 'npm run migrate:test:local',
-      port: 0,
-      reuseExistingServer: false,
-    },
-    {
-      command: 'npm run test:server',
-      url: 'http://localhost:5173',
-      reuseExistingServer: !process.env.CI,
-      stdout: 'ignore',
-      stderr: 'pipe',
-    },
-  ],
+  webServer: {
+    command: 'npm run migrate:test:local && npm run test:server',
+    url: 'http://localhost:5173',
+    reuseExistingServer: !process.env.CI,
+    stdout: 'ignore',
+    stderr: 'pipe',
+  },
 });
