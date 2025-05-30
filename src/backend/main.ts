@@ -105,6 +105,7 @@ app.get('/api/schedules/:scheduleId/phases', phaseHandlers.getSchedulePhases);
 app.post('/api/schedules/:scheduleId/phases', phaseHandlers.createSchedulePhase);
 app.put('/api/schedules/:scheduleId/phases/:phaseId', phaseHandlers.updateSchedulePhase);
 app.delete('/api/schedules/:scheduleId/phases/:phaseId', phaseHandlers.deleteSchedulePhase);
+app.post('/api/schedules/:scheduleId/phases/:phaseId/entries', phaseHandlers.addPhaseEntry);
 
 // --- Public iCal Feed Route ---
 app.get('/ical/:icalUrl', async (c) => {

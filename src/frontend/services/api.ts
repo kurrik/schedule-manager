@@ -265,6 +265,22 @@ export function useApi() {
         method: 'DELETE',
       });
     },
+
+    async addPhaseEntry(
+      scheduleId: string,
+      phaseId: string,
+      entry: {
+        name: string;
+        dayOfWeek: number;
+        startTimeMinutes: number;
+        durationMinutes: number;
+      }
+    ): Promise<{ phase: SchedulePhase }> {
+      return fetchJson<{ phase: SchedulePhase }>(`/schedules/${scheduleId}/phases/${phaseId}/entries`, {
+        method: 'POST',
+        body: JSON.stringify(entry),
+      });
+    },
     
     // Auth
     async getCurrentUser() {

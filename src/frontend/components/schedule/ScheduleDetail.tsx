@@ -11,6 +11,7 @@ const ScheduleDetail: Component = () => {
   const [isLoading, setIsLoading] = createSignal(true);
   const [error, setError] = createSignal<string | null>(null);
   const [showAddEntryModal, setShowAddEntryModal] = createSignal(false);
+  const [addingToPhase, setAddingToPhase] = createSignal<SchedulePhase | null>(null);
   const [showEditModal, setShowEditModal] = createSignal(false);
   const [showEditScheduleModal, setShowEditScheduleModal] = createSignal(false);
   const [showDeleteScheduleModal, setShowDeleteScheduleModal] = createSignal(false);
@@ -108,6 +109,7 @@ const ScheduleDetail: Component = () => {
     if (e.key === 'Escape') {
       if (showAddEntryModal()) {
         setShowAddEntryModal(false);
+        setAddingToPhase(null);
       } else if (showEditModal()) {
         setShowEditModal(false);
         setEditingEntryId(null);
@@ -169,10 +171,17 @@ const ScheduleDetail: Component = () => {
     e.preventDefault();
     if (!schedule()) return;
 
+    const phase = addingToPhase();
+    if (!phase) {
+      setError('No phase selected for adding entry');
+      return;
+    }
+
     try {
       setIsLoading(true);
-      await api.addScheduleEntry(schedule()!.id, entryForm());
+      await api.addPhaseEntry(schedule()!.id, phase.id, entryForm());
       setShowAddEntryModal(false);
+      setAddingToPhase(null);
       setEntryForm({
         name: '',
         dayOfWeek: 0,
@@ -237,13 +246,14 @@ const ScheduleDetail: Component = () => {
     setShowEditModal(true);
   };
 
-  const openAddModalForDay = (dayOfWeek: number) => {
+  const openAddModalForDay = (dayOfWeek: number, phase: SchedulePhase) => {
     setEntryForm({
       name: '',
       dayOfWeek: dayOfWeek,
       startTimeMinutes: 540, // 9:00 AM
       durationMinutes: 60,
     });
+    setAddingToPhase(phase);
     setShowAddEntryModal(true);
   };
 
@@ -878,7 +888,7 @@ const ScheduleDetail: Component = () => {
                           </For>
                           <div 
                             class="border-2 border-dashed border-base-300 rounded p-4 text-center cursor-pointer hover:border-primary hover:bg-base-200 transition-colors"
-                            onClick={() => openAddModalForDay(dayIndex())}
+                            onClick={() => openAddModalForDay(dayIndex(), phaseData.phase)}
                           >
                             <div class="text-base-content/50 text-sm">
                               + Add entry
@@ -1014,7 +1024,9 @@ const ScheduleDetail: Component = () => {
         <Show when={showAddEntryModal()}>
           <div class="modal modal-open">
             <div class="modal-box">
-              <h2 class="font-bold text-lg mb-4">Add Schedule Entry</h2>
+              <h2 class="font-bold text-lg mb-4">
+                Add Entry to {addingToPhase()?.name || 'Phase'}
+              </h2>
               <form onSubmit={handleAddEntry}>
                 <div class="mb-4">
                   <label class="block mb-1">Name</label>
@@ -1063,7 +1075,10 @@ const ScheduleDetail: Component = () => {
                   />
                 </div>
                 <div class="flex justify-end">
-                  <button type="button" class="btn btn-ghost mr-2" onClick={() => setShowAddEntryModal(false)}>
+                  <button type="button" class="btn btn-ghost mr-2" onClick={() => {
+                    setShowAddEntryModal(false);
+                    setAddingToPhase(null);
+                  }}>
                     Cancel
                   </button>
                   <button type="submit" class="btn btn-primary">
