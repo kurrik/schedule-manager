@@ -69,6 +69,7 @@ const googleAuth = honoSimpleGoogleAuth<Env>(async (c) => {
     clientId: c.env.GOOGLE_CLIENT_ID,
     callbackUrl,
     sessionStore: createKVSessionStore(c.env.KV),
+    mode: 'livemode'
   };
 });
 
@@ -115,7 +116,7 @@ app.delete('/api/schedules/:scheduleId/phases/:phaseId/entries/:entryId', phaseH
 // --- Public iCal Feed Route ---
 app.get('/ical/:icalUrl', async (c) => {
   const { icalUrl } = c.req.param();
-  
+
   if (!icalUrl) {
     return c.notFound();
   }
@@ -123,7 +124,7 @@ app.get('/ical/:icalUrl', async (c) => {
   try {
     const scheduleRepo = new D1ScheduleRepository(c.env.DB);
     const schedule = await scheduleRepo.findByICalUrl(icalUrl);
-    
+
     if (!schedule) {
       return c.notFound();
     }
