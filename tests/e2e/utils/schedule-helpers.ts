@@ -43,16 +43,15 @@ export async function navigateToScheduleDetail(page: Page, scheduleName: string)
   // Wait for schedule list to load
   await expect(page.getByRole('heading', { name: 'Schedules' })).toBeVisible();
   
-  // Find the schedule item and click its View button
+  // Find the schedule item and wait for it to be visible
   const scheduleItem = page.locator(`[data-testid*="schedule-item-"]`).filter({ hasText: scheduleName });
+  await expect(scheduleItem).toBeVisible();
   
-  // Add some debugging if the schedule is not found
+  // Add some debugging if the schedule is not found after waiting
   const scheduleCount = await page.locator(`[data-testid*="schedule-item-"]`).count();
   if (scheduleCount === 0) {
     throw new Error(`No schedules found in list. Expected to find "${scheduleName}"`);
   }
-  
-  await expect(scheduleItem).toBeVisible();
   
   const viewButton = scheduleItem.locator(`[data-testid*="schedule-view-button-"]`);
   await viewButton.click();
