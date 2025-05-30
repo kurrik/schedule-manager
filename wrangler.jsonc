@@ -29,14 +29,13 @@
     {
       "binding": "KV",
       "id": "4378b139d94941d5bf12f9eb0492124b",
-      "preview_id": "__SCHEDULE_MANAGER_KV_PREVIEW__"
     }
   ],
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "schedule-manager",
-      "database_id": "46e6f09b-0b12-4e86-9edc-7e0265e0038f",
+      "database_name": "prod-schedule-manager",
+      "database_id": "dc20d051-45a8-439a-a5d3-b38bc03b8261",
       "migrations_dir": "migrations"
     }
   ],
@@ -45,7 +44,50 @@
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
 	 */
   "vars": {
-    "ROOT_DOMAIN": "https://schedule-manager-worker.a17k.workers.dev"
+    "ROOT_DOMAIN": "https://schedule-manager-worker.a17k.workers.dev",
+    "TEST_MODE": "false"
+  },
+  "env": {
+    "test": {
+      "vars": {
+        "ROOT_DOMAIN": "http://localhost:5173",
+        "TEST_MODE": "true"
+      },
+      "kv_namespaces": [
+        {
+          "binding": "KV",
+          "id": "93d84d284ab64027845b65c6e618839e"
+        }
+      ],
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "test-schedule-manager",
+          "database_id": "5d52bb4e-37ee-469b-9de1-2954c1c5aca7",
+          "migrations_dir": "migrations"
+        }
+      ],
+    },
+    "dev": {
+      "vars": {
+        "ROOT_DOMAIN": "http://localhost:3000",
+        "TEST_MODE": "false"
+      },
+      "kv_namespaces": [
+        {
+          "binding": "KV",
+          "id": "24ea038746694378bef1ef38f8a1fde8"
+        }
+      ],
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "dev-schedule-manager",
+          "database_id": "6edeae6f-acda-4890-a9e5-2c4155709091",
+          "migrations_dir": "migrations"
+        }
+      ],
+    }
   },
   /**
 	 * Note: Use secrets to store sensitive data.

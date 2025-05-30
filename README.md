@@ -16,6 +16,17 @@ A schedule management application built with SolidJS frontend and Hono backend, 
    ROOT_DOMAIN=http://localhost:3000
    ```
 
+Create bindings (only needed one time)
+```bash
+npx wrangler@latest d1 create test-schedule-manager
+npx wrangler@latest d1 create dev-schedule-manager
+npx wrangler@latest d1 create prod-schedule-manager
+
+npx wrangler@latest kv namespace create KV
+npx wrangler@latest kv namespace create --env=test KV
+npx wrangler@latest kv namespace create --env=dev KV
+```
+
 ## Development
 
 Start the development server:
