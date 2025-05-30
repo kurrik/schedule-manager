@@ -360,9 +360,20 @@ const ScheduleDetail: Component = () => {
     const dateStr = date.toISOString().split('T')[0];
     const dayOfWeek = date.getDay();
     
-    // Get recurring entries for this day of week
-    const recurringEntries = schedule()!.entries
-      .filter(entry => entry.dayOfWeek === dayOfWeek);
+    // Get recurring entries from all active phases for this day of week
+    const recurringEntries: ScheduleEntry[] = [];
+    
+    for (const phase of schedule()!.phases) {
+      // Check if this phase is active on the given date
+      const isPhaseActive = (!phase.startDate || dateStr >= phase.startDate) && 
+                           (!phase.endDate || dateStr <= phase.endDate);
+      
+      if (isPhaseActive) {
+        // Add entries from this active phase
+        const phaseEntries = phase.entries.filter(entry => entry.dayOfWeek === dayOfWeek);
+        recurringEntries.push(...phaseEntries);
+      }
+    }
 
     // Get overrides for this specific date
     const dateOverrides = overrides().filter(override => override.overrideDate === dateStr);
