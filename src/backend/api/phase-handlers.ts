@@ -293,10 +293,144 @@ export async function addPhaseEntry(c: Context<AppContext>) {
   }
 }
 
+/**
+ * Update an entry within a specific phase
+ */
+export async function updatePhaseEntry(c: Context<AppContext>) {
+  const user = c.get('user');
+  if (!user) {
+    return c.json({ error: 'Not authenticated' }, 401);
+  }
+
+  const { scheduleId, phaseId, entryId } = c.req.param();
+  if (!scheduleId || !phaseId || !entryId) {
+    return c.json({ error: 'Schedule ID, Phase ID, and Entry ID are required' }, 400);
+  }
+
+  const body = await c.req.json<{
+    name: string;
+    dayOfWeek: number;
+    startTimeMinutes: number;
+    durationMinutes: number;
+  }>();
+
+  const { name, dayOfWeek, startTimeMinutes, durationMinutes } = body;
+
+  if (!name || dayOfWeek === undefined || startTimeMinutes === undefined || durationMinutes === undefined) {
+    return c.json({ error: 'All fields are required: name, dayOfWeek, startTimeMinutes, durationMinutes' }, 400);
+  }
+
+  const uow = new D1UnitOfWork(c.env.DB);
+  try {
+    // Verify user has access to the schedule
+    const schedule = await uow.schedules.findById(scheduleId);
+    if (!schedule) {
+      return c.json({ error: 'Schedule not found' }, 404);
+    }
+
+    if (!schedule.isAccessibleBy(user.id)) {
+      return c.json({ error: 'Not authorized to modify this schedule' }, 403);
+    }
+
+    // Get the specific phase
+    const phase = await uow.phases.findById(phaseId);
+    if (!phase) {
+      return c.json({ error: 'Phase not found' }, 404);
+    }
+
+    // Verify the phase belongs to the schedule
+    if (phase.scheduleId !== scheduleId) {
+      return c.json({ error: 'Phase does not belong to this schedule' }, 400);
+    }
+
+    // Find the entry within the phase
+    const entryIndex = phase.entries.findIndex(e => e.id === entryId);
+    if (entryIndex === -1) {
+      return c.json({ error: 'Entry not found in this phase' }, 404);
+    }
+
+    // Create the updated entry
+    const updatedEntry = new ScheduleEntry({
+      id: entryId,
+      name,
+      dayOfWeek,
+      startTimeMinutes,
+      durationMinutes,
+    });
+
+    // Update the entry in the phase
+    phase.updateEntry(entryIndex, updatedEntry);
+    await uow.phases.update(phase);
+    await uow.commit();
+    
+    return c.json({ phase: phase.toJSON() });
+  } catch (error) {
+    console.error('Error updating entry in phase:', error);
+    return c.json({ error: 'Failed to update entry in phase' }, 500);
+  }
+}
+
+/**
+ * Delete an entry from a specific phase
+ */
+export async function deletePhaseEntry(c: Context<AppContext>) {
+  const user = c.get('user');
+  if (!user) {
+    return c.json({ error: 'Not authenticated' }, 401);
+  }
+
+  const { scheduleId, phaseId, entryId } = c.req.param();
+  if (!scheduleId || !phaseId || !entryId) {
+    return c.json({ error: 'Schedule ID, Phase ID, and Entry ID are required' }, 400);
+  }
+
+  const uow = new D1UnitOfWork(c.env.DB);
+  try {
+    // Verify user has access to the schedule
+    const schedule = await uow.schedules.findById(scheduleId);
+    if (!schedule) {
+      return c.json({ error: 'Schedule not found' }, 404);
+    }
+
+    if (!schedule.isAccessibleBy(user.id)) {
+      return c.json({ error: 'Not authorized to modify this schedule' }, 403);
+    }
+
+    // Get the specific phase
+    const phase = await uow.phases.findById(phaseId);
+    if (!phase) {
+      return c.json({ error: 'Phase not found' }, 404);
+    }
+
+    // Verify the phase belongs to the schedule
+    if (phase.scheduleId !== scheduleId) {
+      return c.json({ error: 'Phase does not belong to this schedule' }, 400);
+    }
+
+    // Find the entry within the phase
+    const entryIndex = phase.entries.findIndex(e => e.id === entryId);
+    if (entryIndex === -1) {
+      return c.json({ error: 'Entry not found in this phase' }, 404);
+    }
+
+    // Remove the entry from the phase
+    phase.removeEntry(entryIndex);
+    await uow.phases.update(phase);
+    await uow.commit();
+    
+    return c.json({ phase: phase.toJSON() });
+  } catch (error) {
+    console.error('Error deleting entry from phase:', error);
+    return c.json({ error: 'Failed to delete entry from phase' }, 500);
+  }
+}
+
 export const phaseHandlers = {
   getSchedulePhases,
   createSchedulePhase,
   updateSchedulePhase,
   deleteSchedulePhase,
   addPhaseEntry,
+  updatePhaseEntry,
+  deletePhaseEntry,
 };

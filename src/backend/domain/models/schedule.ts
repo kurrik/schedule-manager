@@ -97,10 +97,13 @@ export class Schedule {
     this.props.timeZone = newTimeZone;
   }
 
-  // Backward compatibility methods for entries (delegate to default phase)
+  // Backward compatibility methods for entries (aggregate from all phases)
   get entries(): ScheduleEntry[] {
-    const defaultPhase = this.getDefaultPhase();
-    return defaultPhase ? defaultPhase.entries : [];
+    const allEntries: ScheduleEntry[] = [];
+    for (const phase of this.props.phases) {
+      allEntries.push(...phase.entries);
+    }
+    return allEntries;
   }
 
   addEntry(entry: ScheduleEntry): void {

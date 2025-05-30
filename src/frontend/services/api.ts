@@ -288,6 +288,33 @@ export function useApi() {
         body: JSON.stringify(entry),
       });
     },
+
+    async updatePhaseEntry(
+      scheduleId: string,
+      phaseId: string,
+      entryId: string,
+      entry: {
+        name: string;
+        dayOfWeek: number;
+        startTimeMinutes: number;
+        durationMinutes: number;
+      }
+    ): Promise<{ phase: SchedulePhase }> {
+      return fetchJson<{ phase: SchedulePhase }>(`/schedules/${scheduleId}/phases/${phaseId}/entries/${entryId}`, {
+        method: 'PUT',
+        body: JSON.stringify(entry),
+      });
+    },
+
+    async deletePhaseEntry(
+      scheduleId: string,
+      phaseId: string,
+      entryId: string
+    ): Promise<{ phase: SchedulePhase }> {
+      return fetchJson<{ phase: SchedulePhase }>(`/schedules/${scheduleId}/phases/${phaseId}/entries/${entryId}`, {
+        method: 'DELETE',
+      });
+    },
     
     // Sharing
     async getScheduleUsers(scheduleId: string): Promise<{ owner: User; sharedUsers: User[] }> {

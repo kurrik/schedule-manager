@@ -16,6 +16,7 @@ const ScheduleDetail: Component = () => {
   const [showEditScheduleModal, setShowEditScheduleModal] = createSignal(false);
   const [showDeleteScheduleModal, setShowDeleteScheduleModal] = createSignal(false);
   const [editingEntryId, setEditingEntryId] = createSignal<string | null>(null);
+  const [editingEntryPhase, setEditingEntryPhase] = createSignal<SchedulePhase | null>(null);
   const [scheduleForm, setScheduleForm] = createSignal({
     name: '',
     timeZone: '',
@@ -135,6 +136,7 @@ const ScheduleDetail: Component = () => {
       } else if (showEditModal()) {
         setShowEditModal(false);
         setEditingEntryId(null);
+        setEditingEntryPhase(null);
       } else if (showEditScheduleModal()) {
         setShowEditScheduleModal(false);
       } else if (showDeleteScheduleModal()) {
@@ -271,16 +273,19 @@ const ScheduleDetail: Component = () => {
 
   const handleEditEntry = async (e: Event) => {
     e.preventDefault();
-    if (!schedule() || !editingEntryId()) return;
-
-    const entryIndex = schedule()!.entries.findIndex(entry => entry.id === editingEntryId());
-    if (entryIndex === -1) return;
+    if (!schedule() || !editingEntryId() || !editingEntryPhase()) return;
 
     try {
       setIsLoading(true);
-      await api.updateScheduleEntry(schedule()!.id, entryIndex, entryForm());
+      await api.updatePhaseEntry(
+        schedule()!.id, 
+        editingEntryPhase()!.id, 
+        editingEntryId()!, 
+        entryForm()
+      );
       setShowEditModal(false);
       setEditingEntryId(null);
+      setEditingEntryPhase(null);
       await loadSchedule();
       await loadOverridesForMonth(); // Reload overrides after entry update
     } catch (err) {
@@ -291,16 +296,18 @@ const ScheduleDetail: Component = () => {
   };
 
   const handleDeleteEntry = async () => {
-    if (!schedule() || !editingEntryId() || !confirm('Are you sure you want to delete this entry?')) return;
-
-    const entryIndex = schedule()!.entries.findIndex(entry => entry.id === editingEntryId());
-    if (entryIndex === -1) return;
+    if (!schedule() || !editingEntryId() || !editingEntryPhase() || !confirm('Are you sure you want to delete this entry?')) return;
 
     try {
       setIsLoading(true);
-      await api.deleteScheduleEntry(schedule()!.id, entryIndex);
+      await api.deletePhaseEntry(
+        schedule()!.id, 
+        editingEntryPhase()!.id, 
+        editingEntryId()!
+      );
       setShowEditModal(false);
       setEditingEntryId(null);
+      setEditingEntryPhase(null);
       await loadSchedule();
       await loadOverridesForMonth(); // Reload overrides after entry deletion
     } catch (err) {
@@ -310,12 +317,16 @@ const ScheduleDetail: Component = () => {
     }
   };
 
-  const openEditModal = (entryId: string) => {
-    const entry = schedule()!.entries.find(e => e.id === entryId);
-    if (!entry) return;
+  const openEditModal = (entryId: string, phase: SchedulePhase) => {
+    const entry = phase.entries.find(e => e.id === entryId);
+    if (!entry) {
+      console.error('Entry not found:', entryId);
+      return;
+    }
     
     setEntryForm({ ...entry });
     setEditingEntryId(entryId);
+    setEditingEntryPhase(phase);
     setShowEditModal(true);
   };
 
@@ -972,7 +983,7 @@ const ScheduleDetail: Component = () => {
                             {(entry: ScheduleEntry) => (
                               <div 
                                 class="bg-primary text-primary-content p-2 rounded cursor-pointer hover:bg-primary-focus"
-                                onClick={() => openEditModal(entry.id!)}
+                                onClick={() => openEditModal(entry.id!, phaseData.phase)}
                               >
                                 <div class="text-sm font-medium">{entry.name}</div>
                                 <div class="text-xs opacity-90">
@@ -1239,7 +1250,11 @@ const ScheduleDetail: Component = () => {
                   />
                 </div>
                 <div class="flex justify-end">
-                  <button type="button" class="btn btn-ghost mr-2" onClick={() => setShowEditModal(false)}>
+                  <button type="button" class="btn btn-ghost mr-2" onClick={() => {
+                    setShowEditModal(false);
+                    setEditingEntryId(null);
+                    setEditingEntryPhase(null);
+                  }}>
                     Cancel
                   </button>
                   <button 
