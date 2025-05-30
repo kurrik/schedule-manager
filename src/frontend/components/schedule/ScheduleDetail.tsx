@@ -27,11 +27,17 @@ const ScheduleDetail: Component = () => {
   const [selectedEntry, setSelectedEntry] = createSignal<MaterializedEntry | null>(null);
   const [showEditPhaseModal, setShowEditPhaseModal] = createSignal(false);
   const [showDeletePhaseModal, setShowDeletePhaseModal] = createSignal(false);
+  const [showSplitPhaseModal, setShowSplitPhaseModal] = createSignal(false);
   const [editingPhase, setEditingPhase] = createSignal<SchedulePhase | null>(null);
+  const [splittingPhase, setSplittingPhase] = createSignal<SchedulePhase | null>(null);
   const [phaseForm, setPhaseForm] = createSignal({
     name: '',
     startDate: '',
     endDate: '',
+  });
+  const [splitPhaseForm, setSplitPhaseForm] = createSignal({
+    transitionDate: '',
+    newPhaseName: '',
   });
   const [entryForm, setEntryForm] = createSignal<ScheduleEntry>({
     name: '',
@@ -122,6 +128,9 @@ const ScheduleDetail: Component = () => {
       } else if (showDeletePhaseModal()) {
         setShowDeletePhaseModal(false);
         setEditingPhase(null);
+      } else if (showSplitPhaseModal()) {
+        setShowSplitPhaseModal(false);
+        setSplittingPhase(null);
       }
     }
   };
@@ -669,6 +678,15 @@ const ScheduleDetail: Component = () => {
     setShowDeletePhaseModal(true);
   };
 
+  const openSplitPhaseModal = (phase: SchedulePhase) => {
+    setSplittingPhase(phase);
+    setSplitPhaseForm({
+      transitionDate: '',
+      newPhaseName: `${phase.name || 'Phase'} - Part 2`,
+    });
+    setShowSplitPhaseModal(true);
+  };
+
   const handleUpdatePhase = async (e: Event) => {
     e.preventDefault();
     const phase = editingPhase();
@@ -712,6 +730,44 @@ const ScheduleDetail: Component = () => {
     } catch (err) {
       console.error('Failed to delete phase:', err);
       setError('Failed to delete phase');
+      setIsLoading(false);
+    }
+  };
+
+  const handleSplitPhase = async (e: Event) => {
+    e.preventDefault();
+    const phase = splittingPhase();
+    if (!schedule() || !phase) return;
+
+    const form = splitPhaseForm();
+    if (!form.transitionDate) {
+      setError('Please select a transition date');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      
+      // Update the original phase to end at the transition date
+      await api.updateSchedulePhase(schedule()!.id, phase.id, {
+        name: phase.name,
+        startDate: phase.startDate,
+        endDate: form.transitionDate,
+      });
+
+      // Create a new phase starting from the transition date
+      const newPhaseResponse = await api.createSchedulePhase(schedule()!.id, {
+        name: form.newPhaseName,
+        startDate: form.transitionDate,
+        endDate: undefined,
+      });
+
+      setShowSplitPhaseModal(false);
+      setSplittingPhase(null);
+      await loadSchedule();
+    } catch (err) {
+      console.error('Failed to split phase:', err);
+      setError('Failed to split phase');
       setIsLoading(false);
     }
   };
@@ -769,6 +825,15 @@ const ScheduleDetail: Component = () => {
                         >
                           ✏️
                         </button>
+                        <Show when={!phaseData.phase.endDate}>
+                          <button 
+                            class="btn btn-ghost btn-sm text-info" 
+                            onClick={() => openSplitPhaseModal(phaseData.phase)}
+                            title="Split phase at date"
+                          >
+                            ✂️
+                          </button>
+                        </Show>
                         <Show when={schedule()!.phases.length > 1}>
                           <button 
                             class="btn btn-ghost btn-sm text-error" 
@@ -1473,6 +1538,66 @@ const ScheduleDetail: Component = () => {
                   Delete Phase
                 </button>
               </div>
+            </div>
+          </div>
+        </Show>
+
+        {/* Split Phase Modal */}
+        <Show when={showSplitPhaseModal() && splittingPhase()}>
+          <div class="modal modal-open">
+            <div class="modal-box">
+              <h2 class="font-bold text-lg mb-4">Split Phase</h2>
+              <p class="mb-4">
+                Split "<strong>{splittingPhase()?.name || 'Default Phase'}</strong>" into two phases at a specific date.
+              </p>
+              <form onSubmit={handleSplitPhase}>
+                <div class="mb-4">
+                  <label class="block mb-1">Transition Date</label>
+                  <input
+                    class="input input-bordered w-full"
+                    type="date"
+                    value={splitPhaseForm().transitionDate}
+                    onInput={(e) => setSplitPhaseForm({ ...splitPhaseForm(), transitionDate: e.currentTarget.value })}
+                    required
+                  />
+                  <div class="text-xs text-gray-500 mt-1">
+                    The original phase will end on this date, and the new phase will start on this date
+                  </div>
+                </div>
+                <div class="mb-4">
+                  <label class="block mb-1">New Phase Name</label>
+                  <input
+                    class="input input-bordered w-full"
+                    placeholder="e.g., Summer Schedule, School Year"
+                    value={splitPhaseForm().newPhaseName}
+                    onInput={(e) => setSplitPhaseForm({ ...splitPhaseForm(), newPhaseName: e.currentTarget.value })}
+                    required
+                  />
+                  <div class="text-xs text-gray-500 mt-1">
+                    Name for the new phase that will start from the transition date
+                  </div>
+                </div>
+                <div class="bg-info/20 p-3 rounded mb-4">
+                  <p class="text-sm">
+                    ℹ️ The new phase will start empty. You can add schedule entries to it after splitting.
+                  </p>
+                </div>
+                <div class="flex justify-end">
+                  <button 
+                    type="button" 
+                    class="btn btn-ghost mr-2" 
+                    onClick={() => {
+                      setShowSplitPhaseModal(false);
+                      setSplittingPhase(null);
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" class="btn btn-primary">
+                    Split Phase
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </Show>
