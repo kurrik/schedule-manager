@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit --strict",
     "preview": "npm run build && vite preview",
     "deploy": "npm run build && wrangler deploy",
-    "cf-typegen": "npx wrangler types"
+    "cf-typegen": "npx wrangler types",
+    "migrate:local": "npx wrangler d1 migrations apply schedule-manager --local",
+    "migrate:remote": "npx wrangler d1 migrations apply schedule-manager --remote"
   },
   "dependencies": {
     "@types/date-fns": "^2.5.3",
