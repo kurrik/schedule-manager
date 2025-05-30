@@ -14,6 +14,7 @@ export type Env = GoogleAuthEnv & {
     GOOGLE_CLIENT_SECRET: string;
     ASSETS: Fetcher;
     ROOT_DOMAIN?: string; // Optional override for production domain
+    TEST_MODE?: string; // Enable test mode when set to 'true'
   };
 };
 
@@ -65,11 +66,13 @@ const upsertUserMiddleware = async (c: Context<AppContext>, next: Next) => {
 const googleAuth = honoSimpleGoogleAuth<Env>(async (c) => {
   const url = new URL(c.req.url);
   const callbackUrl = `${url.protocol}//${url.host}/auth/callback`;
+  const isTestMode = c.env.TEST_MODE === 'true';
+  
   return {
-    clientId: c.env.GOOGLE_CLIENT_ID,
+    clientId: isTestMode ? 'test-client-id' : c.env.GOOGLE_CLIENT_ID,
     callbackUrl,
     sessionStore: createKVSessionStore(c.env.KV),
-    mode: 'livemode'
+    mode: isTestMode ? 'testmode' : 'livemode'
   };
 });
 

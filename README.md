@@ -34,10 +34,18 @@ Start the development server:
 npm run dev
 ```
 
+## Tests
+```bash
+npm run test:e2e
+
+# Selective tests
+npm run test:e2e:headed -- --grep "should create a new schedule" --project=chromium
+```
+
 ## DB migrations
 
 ```bash
-npx wrangler@latest d1 migrations create
+npx wrangler@latest d1 migrations create --env=dev dev-schedule-manager "<MESSAGE>"
 ```
 
 # Prod deploy

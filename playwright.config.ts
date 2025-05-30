@@ -5,6 +5,9 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './tests/e2e',
+  /* Global setup and teardown */
+  globalSetup: './tests/e2e/setup/global-setup.ts',
+  globalTeardown: './tests/e2e/setup/global-teardown.ts',
   /* Run tests in files in parallel */
   fullyParallel: true,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
@@ -62,11 +65,18 @@ export default defineConfig({
   ],
 
   /* Run your local dev server before starting the tests */
-  webServer: {
-    command: 'npm run test:server',
-    url: 'http://localhost:5173',
-    reuseExistingServer: !process.env.CI,
-    stdout: 'ignore',
-    stderr: 'pipe',
-  },
+  webServer: [
+    {
+      command: 'npm run migrate:test:local',
+      port: 0,
+      reuseExistingServer: false,
+    },
+    {
+      command: 'npm run test:server',
+      url: 'http://localhost:5173',
+      reuseExistingServer: !process.env.CI,
+      stdout: 'ignore',
+      stderr: 'pipe',
+    },
+  ],
 });
