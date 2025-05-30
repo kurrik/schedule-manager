@@ -1,4 +1,5 @@
 import { Schedule } from '../models/schedule';
+import { SchedulePhase } from '../models/schedule-phase';
 import { ScheduleEntry } from '../models/schedule-entry';
 import type { IUnitOfWork } from '../repositories';
 
@@ -15,14 +16,23 @@ export class ScheduleService {
     timeZone: string,
     icalUrl: string
   ): Promise<Schedule> {
+    // Create a default phase for the new schedule
+    const scheduleId = crypto.randomUUID();
+    const defaultPhase = new SchedulePhase({
+      id: `default-${scheduleId}`,
+      scheduleId,
+      name: 'Default Phase',
+      entries: []
+    });
+
     const schedule = new Schedule({
-      id: crypto.randomUUID(),
+      id: scheduleId,
       ownerId: userId,
       sharedUserIds: [],
       name,
       timeZone,
       icalUrl,
-      entries: [],
+      phases: [defaultPhase],
     });
 
     await this.uow.schedules.create(schedule);

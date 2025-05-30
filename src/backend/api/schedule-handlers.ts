@@ -2,6 +2,7 @@ import type { Context } from 'hono';
 import type { Env } from '../main';
 import { D1UnitOfWork } from '../infrastructure/unit-of-work/d1-unit-of-work';
 import { Schedule } from '../domain/models/schedule';
+import { SchedulePhase } from '../domain/models/schedule-phase';
 import { ScheduleEntry } from '../domain/models/schedule-entry';
 
 type AppContext = {
@@ -58,14 +59,22 @@ export async function createSchedule(c: Context<AppContext>) {
     // Generate a unique URL-friendly ID for the iCal feed
     const icalUrl = `ical-${crypto.randomUUID().replace(/-/g, '')}`;
 
+    // Create a default phase for the new schedule
+    const defaultPhase = new SchedulePhase({
+      id: `default-${crypto.randomUUID()}`,
+      scheduleId: crypto.randomUUID(),
+      name: 'Default Phase',
+      entries: []
+    });
+
     const schedule = new Schedule({
-      id: crypto.randomUUID(),
+      id: defaultPhase.scheduleId,
       name,
       timeZone,
       icalUrl,
       ownerId: user.id,
       sharedUserIds: [],
-      entries: []
+      phases: [defaultPhase]
     });
 
     console.log('[DEBUG] Creating schedule:', schedule.toJSON());

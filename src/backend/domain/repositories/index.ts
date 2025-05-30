@@ -1,5 +1,6 @@
 import { User } from '../models/user';
 import { Schedule } from '../models/schedule';
+import { SchedulePhase } from '../models/schedule-phase';
 import { ScheduleOverride } from '../models/schedule-override';
 
 /**
@@ -34,6 +35,14 @@ export interface IScheduleRepository {
   delete(id: string): Promise<void>;
 }
 
+export interface ISchedulePhaseRepository {
+  findById(id: string): Promise<SchedulePhase | null>;
+  findByScheduleId(scheduleId: string): Promise<SchedulePhase[]>;
+  create(phase: SchedulePhase): Promise<void>;
+  update(phase: SchedulePhase): Promise<void>;
+  delete(id: string): Promise<void>;
+}
+
 export interface IScheduleOverrideRepository {
   findById(id: string): Promise<ScheduleOverride | null>;
   findByScheduleId(scheduleId: string): Promise<ScheduleOverride[]>;
@@ -45,6 +54,7 @@ export interface IScheduleOverrideRepository {
 export interface IUnitOfWork {
   users: IUserRepository;
   schedules: IScheduleRepository;
+  phases: ISchedulePhaseRepository;
   overrides: IScheduleOverrideRepository;
   commit(): Promise<void>;
   rollback(): Promise<void>;

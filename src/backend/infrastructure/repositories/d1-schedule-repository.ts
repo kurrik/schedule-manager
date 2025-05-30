@@ -1,5 +1,6 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import { Schedule } from '../../domain/models/schedule';
+import { SchedulePhase } from '../../domain/models/schedule-phase';
 import { ScheduleEntry } from '../../domain/models/schedule-entry';
 import type { IScheduleRepository } from '../../domain/repositories';
 
@@ -13,9 +14,19 @@ interface ScheduleRow {
   updated_at: string;
 }
 
+interface SchedulePhaseRow {
+  id: string;
+  schedule_id: string;
+  name: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  created_at: string;
+}
+
 interface ScheduleEntryRow {
   id: string;
   schedule_id: string;
+  phase_id: string;
   name: string;
   day_of_week: number;
   start_time_minutes: number;
@@ -45,10 +56,64 @@ export class D1ScheduleRepository implements IScheduleRepository {
       return null;
     }
 
-    // Get entries
-    const entriesResult = await this.db.prepare(
-      'SELECT * FROM schedule_entries WHERE schedule_id = ? ORDER BY day_of_week, start_time_minutes'
-    ).bind(id).all<ScheduleEntryRow>();
+    // Get phases and their entries
+    const phasesResult = await this.db.prepare(
+      'SELECT * FROM schedule_phases WHERE schedule_id = ? ORDER BY start_date ASC, created_at ASC'
+    ).bind(id).all<SchedulePhaseRow>();
+
+    const phases: SchedulePhase[] = [];
+    for (const phaseRow of phasesResult.results || []) {
+      const entriesResult = await this.db.prepare(
+        'SELECT * FROM schedule_entries WHERE phase_id = ? ORDER BY day_of_week, start_time_minutes'
+      ).bind(phaseRow.id).all<ScheduleEntryRow>();
+
+      phases.push(this.mapToSchedulePhase(phaseRow, entriesResult.results || []));
+    }
+
+    // Handle legacy schedules that don't have phases yet (on-the-fly migration)
+    if (phases.length === 0) {
+      console.log('[DEBUG] No phases found for schedule, checking for legacy entries:', id);
+      
+      // Check if there are entries without phase_id (legacy entries)
+      const legacyEntries = await this.db.prepare(
+        'SELECT * FROM schedule_entries WHERE schedule_id = ? AND phase_id IS NULL ORDER BY day_of_week, start_time_minutes'
+      ).bind(id).all<ScheduleEntryRow>();
+
+      if (legacyEntries.results && legacyEntries.results.length > 0) {
+        console.log('[DEBUG] Found legacy entries, creating default phase');
+        
+        // Create a default phase for this schedule
+        const defaultPhaseId = `default-${id}`;
+        await this.db.prepare(`
+          INSERT INTO schedule_phases (id, schedule_id, name, start_date, end_date, created_at)
+          VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        `).bind(defaultPhaseId, id, 'Default Phase', null, null).run();
+
+        // Update legacy entries to reference the new default phase
+        await this.db.prepare(`
+          UPDATE schedule_entries 
+          SET phase_id = ? 
+          WHERE schedule_id = ? AND phase_id IS NULL
+        `).bind(defaultPhaseId, id).run();
+
+        // Create the phase object with the migrated entries
+        const migratedEntries = legacyEntries.results.map(row => ({
+          ...row,
+          phase_id: defaultPhaseId
+        }));
+
+        const defaultPhase = this.mapToSchedulePhase({
+          id: defaultPhaseId,
+          schedule_id: id,
+          name: 'Default Phase',
+          start_date: null,
+          end_date: null,
+          created_at: new Date().toISOString()
+        }, migratedEntries);
+
+        phases.push(defaultPhase);
+      }
+    }
 
     // Get shared users
     const sharesResult = await this.db.prepare(
@@ -57,7 +122,7 @@ export class D1ScheduleRepository implements IScheduleRepository {
 
     return this.mapToSchedule(
       scheduleResult,
-      entriesResult.results || [],
+      phases,
       sharesResult.results || []
     );
   }
@@ -73,11 +138,20 @@ export class D1ScheduleRepository implements IScheduleRepository {
 
     const schedules: Schedule[] = [];
 
-    // For each schedule, get entries and shares
+    // For each schedule, get phases and shares
     for (const scheduleRow of schedulesResult.results || []) {
-      const entriesResult = await this.db.prepare(
-        'SELECT * FROM schedule_entries WHERE schedule_id = ? ORDER BY day_of_week, start_time_minutes'
-      ).bind(scheduleRow.id).all<ScheduleEntryRow>();
+      const phasesResult = await this.db.prepare(
+        'SELECT * FROM schedule_phases WHERE schedule_id = ? ORDER BY start_date ASC, created_at ASC'
+      ).bind(scheduleRow.id).all<SchedulePhaseRow>();
+
+      const phases: SchedulePhase[] = [];
+      for (const phaseRow of phasesResult.results || []) {
+        const entriesResult = await this.db.prepare(
+          'SELECT * FROM schedule_entries WHERE phase_id = ? ORDER BY day_of_week, start_time_minutes'
+        ).bind(phaseRow.id).all<ScheduleEntryRow>();
+
+        phases.push(this.mapToSchedulePhase(phaseRow, entriesResult.results || []));
+      }
 
       const sharesResult = await this.db.prepare(
         'SELECT user_id FROM schedule_shares WHERE schedule_id = ?'
@@ -85,7 +159,7 @@ export class D1ScheduleRepository implements IScheduleRepository {
 
       schedules.push(this.mapToSchedule(
         scheduleRow,
-        entriesResult.results || [],
+        phases,
         sharesResult.results || []
       ));
     }
@@ -102,10 +176,19 @@ export class D1ScheduleRepository implements IScheduleRepository {
       return null;
     }
 
-    // Get entries
-    const entriesResult = await this.db.prepare(
-      'SELECT * FROM schedule_entries WHERE schedule_id = ? ORDER BY day_of_week, start_time_minutes'
-    ).bind(scheduleResult.id).all<ScheduleEntryRow>();
+    // Get phases and their entries
+    const phasesResult = await this.db.prepare(
+      'SELECT * FROM schedule_phases WHERE schedule_id = ? ORDER BY start_date ASC, created_at ASC'
+    ).bind(scheduleResult.id).all<SchedulePhaseRow>();
+
+    const phases: SchedulePhase[] = [];
+    for (const phaseRow of phasesResult.results || []) {
+      const entriesResult = await this.db.prepare(
+        'SELECT * FROM schedule_entries WHERE phase_id = ? ORDER BY day_of_week, start_time_minutes'
+      ).bind(phaseRow.id).all<ScheduleEntryRow>();
+
+      phases.push(this.mapToSchedulePhase(phaseRow, entriesResult.results || []));
+    }
 
     // Get shared users
     const sharesResult = await this.db.prepare(
@@ -114,7 +197,7 @@ export class D1ScheduleRepository implements IScheduleRepository {
 
     return this.mapToSchedule(
       scheduleResult,
-      entriesResult.results || [],
+      phases,
       sharesResult.results || []
     );
   }
@@ -139,23 +222,41 @@ export class D1ScheduleRepository implements IScheduleRepository {
       )
     );
 
-    // Insert entries
-    for (const entry of schedule.entries) {
-      const entryId = entry.id || crypto.randomUUID();
+    // Insert phases and their entries
+    for (const phase of schedule.phases) {
+      // Insert phase
       batch.push(
         this.db.prepare(`
-          INSERT INTO schedule_entries 
-          (id, schedule_id, name, day_of_week, start_time_minutes, duration_minutes)
-          VALUES (?, ?, ?, ?, ?, ?)
+          INSERT INTO schedule_phases (id, schedule_id, name, start_date, end_date, created_at)
+          VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         `).bind(
-          entryId,
-          schedule.id,
-          entry.name,
-          entry.dayOfWeek,
-          entry.startTimeMinutes,
-          entry.durationMinutes
+          phase.id,
+          phase.scheduleId,
+          phase.name || null,
+          phase.startDate || null,
+          phase.endDate || null
         )
       );
+
+      // Insert entries for this phase
+      for (const entry of phase.entries) {
+        const entryId = entry.id || crypto.randomUUID();
+        batch.push(
+          this.db.prepare(`
+            INSERT INTO schedule_entries 
+            (id, schedule_id, phase_id, name, day_of_week, start_time_minutes, duration_minutes)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+          `).bind(
+            entryId,
+            schedule.id,
+            phase.id,
+            entry.name,
+            entry.dayOfWeek,
+            entry.startTimeMinutes,
+            entry.durationMinutes
+          )
+        );
+      }
     }
 
     // Insert shares
@@ -176,27 +277,10 @@ export class D1ScheduleRepository implements IScheduleRepository {
   async update(schedule: Schedule): Promise<void> {
     console.log('[DEBUG] Updating existing schedule:', schedule.id);
     
-    // Check overrides before save
-    const overridesBefore = await this.db.prepare(
-      'SELECT id, base_entry_id FROM schedule_overrides WHERE schedule_id = ?'
-    ).bind(schedule.id).all();
-    console.log('[DEBUG] Overrides before save:', overridesBefore.results);
-    
-    // Get existing entry IDs to know which ones to delete later
-    const existingEntries = await this.db.prepare(
-      'SELECT id FROM schedule_entries WHERE schedule_id = ?'
-    ).bind(schedule.id).all<{id: string}>();
-    
-    const existingIds = new Set(existingEntries.results?.map(row => row.id) || []);
-    const newIds = new Set<string>();
-    
-    console.log('[DEBUG] Existing entries:', Array.from(existingIds));
-    console.log('[DEBUG] Schedule entries to save:', schedule.entries.map(e => ({ id: e.id, name: e.name })));
-
-    // Prepare batch operations
+    // Update schedule metadata only - phases will be handled separately
     const batch = [];
 
-    // Update schedule (use UPDATE to avoid triggering CASCADE DELETE on overrides)
+    // Update schedule metadata
     batch.push(
       this.db.prepare(`
         UPDATE schedules 
@@ -211,72 +295,9 @@ export class D1ScheduleRepository implements IScheduleRepository {
       )
     );
 
-    // Insert or update entries (preserving IDs to maintain override references)
-    for (const entry of schedule.entries) {
-      const entryId = entry.id || crypto.randomUUID();
-      console.log('[DEBUG] Processing entry:', { entryId, name: entry.name });
-      newIds.add(entryId);
-      
-      if (existingIds.has(entryId)) {
-        // Update existing entry (preserves foreign key references)
-        console.log('[DEBUG] Updating existing entry:', entryId);
-        batch.push(
-          this.db.prepare(`
-            UPDATE schedule_entries 
-            SET name = ?, day_of_week = ?, start_time_minutes = ?, duration_minutes = ?
-            WHERE id = ?
-          `).bind(
-            entry.name,
-            entry.dayOfWeek,
-            entry.startTimeMinutes,
-            entry.durationMinutes,
-            entryId
-          )
-        );
-      } else {
-        // Insert new entry
-        console.log('[DEBUG] Inserting new entry:', entryId);
-        batch.push(
-          this.db.prepare(`
-            INSERT INTO schedule_entries 
-            (id, schedule_id, name, day_of_week, start_time_minutes, duration_minutes)
-            VALUES (?, ?, ?, ?, ?, ?)
-          `).bind(
-            entryId,
-            schedule.id,
-            entry.name,
-            entry.dayOfWeek,
-            entry.startTimeMinutes,
-            entry.durationMinutes
-          )
-        );
-      }
-    }
-    
-    console.log('[DEBUG] New entry IDs:', Array.from(newIds));
+    // Handle phase updates
+    await this.updatePhasesAndEntries(schedule, batch);
 
-    // For entries that are no longer in the schedule, check if they're referenced by overrides
-    for (const existingId of existingIds) {
-      if (!newIds.has(existingId)) {
-        console.log('[DEBUG] Entry no longer in schedule:', existingId);
-        // Check if this entry is referenced by any overrides
-        const overrideCount = await this.db.prepare(
-          'SELECT COUNT(*) as count FROM schedule_overrides WHERE base_entry_id = ?'
-        ).bind(existingId).first<{count: number}>();
-        
-        console.log('[DEBUG] Override count for entry', existingId, ':', overrideCount?.count);
-        
-        // Only delete if no overrides reference this entry
-        if (!overrideCount || overrideCount.count === 0) {
-          console.log('[DEBUG] Deleting entry:', existingId);
-          batch.push(
-            this.db.prepare('DELETE FROM schedule_entries WHERE id = ?').bind(existingId)
-          );
-        } else {
-          console.log('[DEBUG] Keeping entry', existingId, 'due to override references');
-        }
-      }
-    }
 
     // Delete existing shares
     batch.push(
@@ -297,12 +318,130 @@ export class D1ScheduleRepository implements IScheduleRepository {
     // Execute all operations
     console.log('[DEBUG] Executing update batch with', batch.length, 'operations');
     await this.db.batch(batch);
+  }
+
+  private async updatePhasesAndEntries(schedule: Schedule, batch: any[]): Promise<void> {
+    // Get existing phases
+    const existingPhases = await this.db.prepare(
+      'SELECT id FROM schedule_phases WHERE schedule_id = ?'
+    ).bind(schedule.id).all<{id: string}>();
     
-    // Check overrides after save
-    const overridesAfter = await this.db.prepare(
-      'SELECT id, base_entry_id FROM schedule_overrides WHERE schedule_id = ?'
-    ).bind(schedule.id).all();
-    console.log('[DEBUG] Overrides after save:', overridesAfter.results);
+    const existingPhaseIds = new Set(existingPhases.results?.map(row => row.id) || []);
+    const newPhaseIds = new Set<string>();
+
+    // Process each phase
+    for (const phase of schedule.phases) {
+      newPhaseIds.add(phase.id);
+      
+      if (existingPhaseIds.has(phase.id)) {
+        // Update existing phase
+        batch.push(
+          this.db.prepare(`
+            UPDATE schedule_phases 
+            SET name = ?, start_date = ?, end_date = ?
+            WHERE id = ?
+          `).bind(
+            phase.name || null,
+            phase.startDate || null,
+            phase.endDate || null,
+            phase.id
+          )
+        );
+      } else {
+        // Insert new phase
+        batch.push(
+          this.db.prepare(`
+            INSERT INTO schedule_phases (id, schedule_id, name, start_date, end_date, created_at)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          `).bind(
+            phase.id,
+            phase.scheduleId,
+            phase.name || null,
+            phase.startDate || null,
+            phase.endDate || null
+          )
+        );
+      }
+
+      // Handle entries for this phase
+      await this.updateEntriesForPhase(phase, batch);
+    }
+
+    // Delete phases that are no longer in the schedule
+    for (const existingPhaseId of existingPhaseIds) {
+      if (!newPhaseIds.has(existingPhaseId)) {
+        console.log('[DEBUG] Deleting phase:', existingPhaseId);
+        batch.push(
+          this.db.prepare('DELETE FROM schedule_phases WHERE id = ?').bind(existingPhaseId)
+        );
+      }
+    }
+  }
+
+  private async updateEntriesForPhase(phase: SchedulePhase, batch: any[]): Promise<void> {
+    // Get existing entries for this phase
+    const existingEntries = await this.db.prepare(
+      'SELECT id FROM schedule_entries WHERE phase_id = ?'
+    ).bind(phase.id).all<{id: string}>();
+    
+    const existingIds = new Set(existingEntries.results?.map(row => row.id) || []);
+    const newIds = new Set<string>();
+
+    // Process each entry in the phase
+    for (const entry of phase.entries) {
+      const entryId = entry.id || crypto.randomUUID();
+      newIds.add(entryId);
+      
+      if (existingIds.has(entryId)) {
+        // Update existing entry
+        batch.push(
+          this.db.prepare(`
+            UPDATE schedule_entries 
+            SET name = ?, day_of_week = ?, start_time_minutes = ?, duration_minutes = ?
+            WHERE id = ?
+          `).bind(
+            entry.name,
+            entry.dayOfWeek,
+            entry.startTimeMinutes,
+            entry.durationMinutes,
+            entryId
+          )
+        );
+      } else {
+        // Insert new entry
+        batch.push(
+          this.db.prepare(`
+            INSERT INTO schedule_entries 
+            (id, schedule_id, phase_id, name, day_of_week, start_time_minutes, duration_minutes)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+          `).bind(
+            entryId,
+            phase.scheduleId,
+            phase.id,
+            entry.name,
+            entry.dayOfWeek,
+            entry.startTimeMinutes,
+            entry.durationMinutes
+          )
+        );
+      }
+    }
+
+    // Delete entries that are no longer in this phase
+    for (const existingId of existingIds) {
+      if (!newIds.has(existingId)) {
+        // Check if this entry is referenced by overrides before deleting
+        const overrideCount = await this.db.prepare(
+          'SELECT COUNT(*) as count FROM schedule_overrides WHERE base_entry_id = ?'
+        ).bind(existingId).first<{count: number}>();
+        
+        if (!overrideCount || overrideCount.count === 0) {
+          batch.push(
+            this.db.prepare('DELETE FROM schedule_entries WHERE id = ?').bind(existingId)
+          );
+        }
+      }
+    }
   }
 
   async delete(id: string): Promise<void> {
@@ -312,17 +451,9 @@ export class D1ScheduleRepository implements IScheduleRepository {
 
   private mapToSchedule(
     scheduleRow: ScheduleRow,
-    entryRows: ScheduleEntryRow[],
+    phases: SchedulePhase[],
     shareRows: ScheduleShareRow[]
   ): Schedule {
-    const entries = entryRows.map(row => new ScheduleEntry({
-      id: row.id,
-      name: row.name,
-      dayOfWeek: row.day_of_week,
-      startTimeMinutes: row.start_time_minutes,
-      durationMinutes: row.duration_minutes,
-    }));
-
     const sharedUserIds = shareRows.map(row => row.user_id);
 
     return new Schedule({
@@ -332,6 +463,28 @@ export class D1ScheduleRepository implements IScheduleRepository {
       timeZone: scheduleRow.timezone,
       icalUrl: scheduleRow.ical_url,
       sharedUserIds,
+      phases,
+    });
+  }
+
+  private mapToSchedulePhase(
+    phaseRow: SchedulePhaseRow,
+    entryRows: ScheduleEntryRow[]
+  ): SchedulePhase {
+    const entries = entryRows.map(row => new ScheduleEntry({
+      id: row.id,
+      name: row.name,
+      dayOfWeek: row.day_of_week,
+      startTimeMinutes: row.start_time_minutes,
+      durationMinutes: row.duration_minutes,
+    }));
+
+    return new SchedulePhase({
+      id: phaseRow.id,
+      scheduleId: phaseRow.schedule_id,
+      name: phaseRow.name || undefined,
+      startDate: phaseRow.start_date || undefined,
+      endDate: phaseRow.end_date || undefined,
       entries,
     });
   }

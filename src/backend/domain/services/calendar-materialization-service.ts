@@ -2,7 +2,7 @@ import type { Schedule } from '../models/schedule';
 import type { ScheduleOverride, ModifyOverrideData, OneTimeOverrideData } from '../models/schedule-override';
 
 export interface MaterializedEntry {
-  id: string; // Either entry index or override ID
+  id: string; // Either entry ID or override ID
   name: string;
   dayOfWeek: number;
   startTimeMinutes: number;
@@ -10,7 +10,8 @@ export interface MaterializedEntry {
   date: string; // ISO date string (YYYY-MM-DD)
   isOverride: boolean;
   overrideType?: 'MODIFY' | 'SKIP' | 'ONE_TIME';
-  baseEntryIndex?: number; // For MODIFY overrides
+  baseEntryId?: string; // For MODIFY overrides (now using entry ID instead of index)
+  phaseId?: string; // Which phase this entry belongs to
 }
 
 export class CalendarMaterializationService {
@@ -25,10 +26,10 @@ export class CalendarMaterializationService {
     const dateStr = date.toISOString().split('T')[0];
     const dayOfWeek = date.getDay();
     
-    // Start with recurring entries for this day of week
-    const recurringEntries = schedule.entries
-      .map((entry, index) => ({ entry, index }))
-      .filter(({ entry }) => entry.dayOfWeek === dayOfWeek);
+    // Start with entries from active phases for this day of week and date
+    const activeEntries = schedule.getActiveEntriesForDate(dateStr);
+    const recurringEntries = activeEntries
+      .filter((entry) => entry.dayOfWeek === dayOfWeek);
 
     // Get overrides for this specific date
     const relevantOverrides = overrides.filter(override => override.overrideDate === dateStr);
@@ -36,10 +37,16 @@ export class CalendarMaterializationService {
     const materializedEntries: MaterializedEntry[] = [];
 
     // Process recurring entries, applying modifications and skips
-    for (const { entry, index } of recurringEntries) {
+    for (const entry of recurringEntries) {
+      // Skip entries without IDs (shouldn't happen for persisted entries)
+      if (!entry.id) {
+        console.warn('Skipping entry without ID:', entry.name);
+        continue;
+      }
+      
       // Check if this entry is skipped
       const skipOverride = relevantOverrides.find(
-        override => override.isSkipOverride() && override.baseEntryId === index.toString()
+        override => override.isSkipOverride() && override.baseEntryId === entry.id
       );
 
       if (skipOverride) {
@@ -49,12 +56,16 @@ export class CalendarMaterializationService {
 
       // Check if this entry is modified
       const modifyOverride = relevantOverrides.find(
-        override => override.isModifyOverride() && override.baseEntryId === index.toString()
+        override => override.isModifyOverride() && override.baseEntryId === entry.id
       );
 
       if (modifyOverride) {
         // Apply modifications
         const modifyData = modifyOverride.overrideData as ModifyOverrideData;
+        // Find which phase this entry belongs to
+        const entryPhase = schedule.phases.find(phase => 
+          phase.entries.some(e => e.id === entry.id)
+        );
         materializedEntries.push({
           id: modifyOverride.id,
           name: modifyData.name ?? entry.name,
@@ -64,18 +75,24 @@ export class CalendarMaterializationService {
           date: dateStr,
           isOverride: true,
           overrideType: 'MODIFY',
-          baseEntryIndex: index,
+          baseEntryId: entry.id,
+          phaseId: entryPhase?.id,
         });
       } else {
         // Use original recurring entry
+        // Find which phase this entry belongs to
+        const entryPhase = schedule.phases.find(phase => 
+          phase.entries.some(e => e.id === entry.id)
+        );
         materializedEntries.push({
-          id: index.toString(),
+          id: entry.id,
           name: entry.name,
           dayOfWeek: entry.dayOfWeek,
           startTimeMinutes: entry.startTimeMinutes,
           durationMinutes: entry.durationMinutes,
           date: dateStr,
           isOverride: false,
+          phaseId: entryPhase?.id,
         });
       }
     }

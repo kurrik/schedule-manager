@@ -1,5 +1,6 @@
 import ical from 'ical-generator';
 import type { Schedule } from '../models/schedule';
+import type { SchedulePhase } from '../models/schedule-phase';
 import type { ScheduleEntry } from '../models/schedule-entry';
 
 export class ICalService {
@@ -11,24 +12,36 @@ export class ICalService {
       url: `${baseUrl}/schedule/${schedule.id}`,
     });
 
-    // Add each schedule entry as a recurring weekly event
-    for (const entry of schedule.entries) {
-      this.addRecurringEvent(calendar, entry, schedule, baseUrl);
+    // Add entries from all phases, respecting phase date boundaries
+    for (const phase of schedule.phases) {
+      for (const entry of phase.entries) {
+        this.addRecurringEventWithPhase(calendar, entry, phase, schedule, baseUrl);
+      }
     }
 
     return calendar.toString();
   }
 
-  private addRecurringEvent(
+  private addRecurringEventWithPhase(
     calendar: any, 
     entry: ScheduleEntry, 
+    phase: SchedulePhase,
     schedule: Schedule, 
     baseUrl: string
   ): void {
-    // Calculate the next occurrence of this day of week
-    // Start from today to ensure we don't create events in the past
+    // Determine the effective start date based on phase boundaries
     const today = new Date();
-    const startDate = this.getNextOccurrenceOfDay(today, entry.dayOfWeek);
+    let effectiveStartDate = today;
+    
+    // If phase has a start date, use the later of today or phase start
+    if (phase.startDate) {
+      const phaseStart = new Date(phase.startDate + 'T00:00:00Z');
+      if (phaseStart > today) {
+        effectiveStartDate = phaseStart;
+      }
+    }
+    
+    const startDate = this.getNextOccurrenceOfDay(effectiveStartDate, entry.dayOfWeek);
     
     // Convert start time minutes to hours and minutes
     const startHours = Math.floor(entry.startTimeMinutes / 60);
@@ -41,14 +54,30 @@ export class ICalService {
     const endDate = new Date(startDate);
     endDate.setMinutes(endDate.getMinutes() + entry.durationMinutes);
 
-    // Create description with link back to schedule
+    // Create description with link back to schedule and phase info
     const description = [
       `Weekly recurring task: ${entry.name}`,
       `Schedule: ${schedule.name}`,
+      phase.name ? `Phase: ${phase.name}` : '',
+      phase.startDate ? `Phase starts: ${phase.startDate}` : '',
+      phase.endDate ? `Phase ends: ${phase.endDate}` : '',
       `Duration: ${entry.durationMinutes} minutes`,
       '',
       `View and edit this schedule at: ${baseUrl}/schedule/${schedule.id}`,
-    ].join('\n');
+    ].filter(line => line).join('\n');
+
+    // Build repeating rule with phase end date if specified
+    const repeatingRule: any = {
+      freq: 'WEEKLY',
+      interval: 1,
+    };
+    
+    // If phase has an end date, set UNTIL parameter
+    if (phase.endDate) {
+      // Set to end of day on the phase end date
+      const untilDate = new Date(phase.endDate + 'T23:59:59Z');
+      repeatingRule.until = untilDate;
+    }
 
     calendar.createEvent({
       start: startDate,
@@ -56,11 +85,7 @@ export class ICalService {
       summary: entry.name,
       description: description,
       timezone: schedule.timeZone,
-      repeating: {
-        freq: 'WEEKLY', // Repeat weekly
-        interval: 1,    // Every week
-        // No end date - repeats forever as requested
-      },
+      repeating: repeatingRule,
     });
   }
 
