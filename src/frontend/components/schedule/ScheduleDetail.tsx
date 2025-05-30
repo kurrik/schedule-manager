@@ -964,13 +964,6 @@ const ScheduleDetail: Component = () => {
                         {formatPhaseDescription(phaseData.phase)}
                       </div>
                     </div>
-                    <Show when={phaseData.phase.startDate || phaseData.phase.endDate}>
-                      <p class="text-sm text-gray-600 mt-1">
-                        This phase {phaseData.phase.startDate && phaseData.phase.endDate 
-                          ? `is active from ${formatPhaseDescription(phaseData.phase)}` 
-                          : formatPhaseDescription(phaseData.phase).toLowerCase()}
-                      </p>
-                    </Show>
                   </div>
 
                   {/* Weekly Grid for this Phase */}
