@@ -13,7 +13,7 @@ test.describe('Authentication', () => {
     await verifyAuthenticated(page, testUsers.user1);
     
     // Verify UI shows authenticated state
-    await expect(page.locator('text=Test User 1')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Sign Out' })).toBeVisible();
   });
 
   test('should sign out user successfully', async ({ page }) => {

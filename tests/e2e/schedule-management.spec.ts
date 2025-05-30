@@ -49,8 +49,8 @@ test.describe('Schedule Management', () => {
     const updatedName = `Updated Schedule ${Math.random().toString(36).substring(7)}`;
     await editScheduleInfo(page, updatedName);
     
-    // Verify updated name appears
-    await expect(page.getByText(updatedName)).toBeVisible();
+    // Verify updated name appears in the main heading
+    await expect(page.getByRole('heading', { name: updatedName })).toBeVisible();
   });
 
   test('should add schedule entry', async ({ page }) => {

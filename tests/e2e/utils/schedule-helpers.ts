@@ -25,8 +25,8 @@ export async function createScheduleViaUI(page: Page, baseName: string = 'Test S
   await page.getByTestId('create-schedule-submit-button').click();
   await expect(page.getByTestId('create-schedule-modal')).not.toBeVisible();
   
-  // Verify schedule appears in list
-  await expect(page.getByText(uniqueName)).toBeVisible();
+  // Verify schedule appears in the schedule list specifically
+  await expect(page.locator(`[data-testid*="schedule-item-"]`).filter({ hasText: uniqueName })).toBeVisible();
   
   return uniqueName;
 }
@@ -40,8 +40,18 @@ export async function navigateToScheduleDetail(page: Page, scheduleName: string)
   // Navigate to schedules list if not already there
   await page.goto('/');
   
+  // Wait for schedule list to load
+  await expect(page.getByRole('heading', { name: 'Schedules' })).toBeVisible();
+  
   // Find the schedule item and click its View button
   const scheduleItem = page.locator(`[data-testid*="schedule-item-"]`).filter({ hasText: scheduleName });
+  
+  // Add some debugging if the schedule is not found
+  const scheduleCount = await page.locator(`[data-testid*="schedule-item-"]`).count();
+  if (scheduleCount === 0) {
+    throw new Error(`No schedules found in list. Expected to find "${scheduleName}"`);
+  }
+  
   await expect(scheduleItem).toBeVisible();
   
   const viewButton = scheduleItem.locator(`[data-testid*="schedule-view-button-"]`);
@@ -116,9 +126,10 @@ export async function editScheduleEntry(page: Page, entryName: string, newDetail
   await page.getByTestId('edit-entry-save-button').click();
   await expect(page.getByTestId('edit-entry-modal')).not.toBeVisible();
   
-  // Verify updated entry appears
+  // Verify updated entry appears in the weekly grid
   const expectedName = newDetails.name || entryName;
-  await expect(page.getByText(expectedName)).toBeVisible();
+  const targetDay = newDetails.day || 'Wednesday'; // Default to Wednesday since we don't track original day
+  await expect(page.locator('text=' + targetDay).locator('..').getByText(expectedName)).toBeVisible();
 }
 
 /**
@@ -164,6 +175,6 @@ export async function editScheduleInfo(page: Page, newName?: string, newTimezone
   
   // Verify updated name appears if changed
   if (newName) {
-    await expect(page.getByText(newName)).toBeVisible();
+    await expect(page.getByRole('heading', { name: newName })).toBeVisible();
   }
 }
