@@ -14,6 +14,9 @@ export const testUsers = {
  * Sign in a test user using the test mode endpoint
  */
 export async function signInTestUser(page: Page, user: TestUser) {
+  // Navigate to the signin endpoint to ensure cookies are set properly in the browser context
+  await page.goto('/auth/test/signin', { waitUntil: 'domcontentloaded' });
+  
   const response = await page.request.post('/auth/test/signin', {
     data: {
       name: user.name,
@@ -24,6 +27,9 @@ export async function signInTestUser(page: Page, user: TestUser) {
   if (!response.ok()) {
     throw new Error(`Failed to sign in test user: ${response.status()}`);
   }
+  
+  // Navigate to home page to complete the authentication flow
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
 }
 
 /**

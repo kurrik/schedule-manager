@@ -6,9 +6,6 @@ test.describe('Authentication', () => {
     // Sign in using test mode
     await signInTestUser(page, testUsers.user1);
 
-    // Navigate to the app
-    await page.goto('/');
-
     // Verify user is authenticated via API
     await verifyAuthenticated(page, testUsers.user1);
 
@@ -19,7 +16,6 @@ test.describe('Authentication', () => {
   test('should sign out user successfully', async ({ page }) => {
     // Sign in first
     await signInTestUser(page, testUsers.user1);
-    await page.goto('/');
 
     // Sign out
     await signOut(page);
