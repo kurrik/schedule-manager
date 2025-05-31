@@ -35,7 +35,11 @@ export default defineConfig({
 
     {
       name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
+      use: { 
+        ...devices['Desktop Firefox'],
+        navigationTimeout: 30000,
+        actionTimeout: 10000,
+      },
     },
 
     {
@@ -71,5 +75,6 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     stdout: 'ignore',
     stderr: 'pipe',
+    timeout: 120 * 1000,
   },
 });

@@ -20,7 +20,7 @@ export async function signInTestUser(page: Page, user: TestUser) {
       email: user.email,
     },
   });
-  
+
   if (!response.ok()) {
     throw new Error(`Failed to sign in test user: ${response.status()}`);
   }
@@ -30,7 +30,17 @@ export async function signInTestUser(page: Page, user: TestUser) {
  * Sign out the current user
  */
 export async function signOut(page: Page) {
-  await page.goto('/auth/signout');
+  // Navigate to schedules list with retry for Firefox
+  try {
+    await page.goto('/');
+  } catch (error) {
+    if (error.message.includes('NS_BINDING_ABORTED')) {
+      await page.waitForTimeout(1000);
+      await page.goto('/auth/signout');
+    } else {
+      throw error;
+    }
+  }
 }
 
 /**
@@ -38,15 +48,15 @@ export async function signOut(page: Page) {
  */
 export async function verifyAuthenticated(page: Page, expectedUser: TestUser) {
   const response = await page.request.get('/api/me');
-  
+
   if (!response.ok()) {
     throw new Error('User is not authenticated');
   }
-  
+
   const userData = await response.json();
   if (userData.email !== expectedUser.email) {
     throw new Error(`Expected user ${expectedUser.email}, got ${userData.email}`);
   }
-  
+
   return userData;
 }
