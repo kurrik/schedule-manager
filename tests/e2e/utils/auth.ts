@@ -14,22 +14,21 @@ export const testUsers = {
  * Sign in a test user using the test mode endpoint
  */
 export async function signInTestUser(page: Page, user: TestUser) {
-  // Navigate to the signin endpoint to ensure cookies are set properly in the browser context
-  await page.goto('/auth/test/signin', { waitUntil: 'domcontentloaded' });
-  
-  const response = await page.request.post('/auth/test/signin', {
-    data: {
-      name: user.name,
-      email: user.email,
-    },
-  });
+  // Generate a unique session ID for test isolation
+  const sessionID = `test-session-${Math.random().toString(36).substring(2, 15)}`;
 
-  if (!response.ok()) {
-    throw new Error(`Failed to sign in test user: ${response.status()}`);
-  }
-  
-  // Navigate to home page to complete the authentication flow
-  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  // Navigate to the signin endpoint to ensure cookies are set properly in the browser context
+  await page.goto('/auth/signout');
+  await page.goto('/auth/signin', { waitUntil: 'domcontentloaded' });
+
+  // Fill in the form
+  await page.getByRole('textbox', { name: 'Name' }).fill(user.name);
+  await page.getByRole('textbox', { name: 'Email' }).fill(user.email);
+  await page.getByRole('textbox', { name: 'Session ID' }).fill(sessionID);
+
+  // Submit the form
+  await page.getByRole('button', { name: 'Sign In' }).click();
+  await page.waitForLoadState('networkidle');
 }
 
 /**
@@ -38,7 +37,7 @@ export async function signInTestUser(page: Page, user: TestUser) {
 export async function signOut(page: Page) {
   // Navigate to schedules list with retry for Firefox
   try {
-    await page.goto('/');
+    await page.goto('/auth/signout');
   } catch (error) {
     if (error.message.includes('NS_BINDING_ABORTED')) {
       await page.waitForTimeout(1000);
