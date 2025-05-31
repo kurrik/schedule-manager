@@ -1,4 +1,5 @@
 import { Page, expect } from '@playwright/test';
+import { getUniqueName } from './index';
 
 /**
  * Creates a schedule via UI interaction
@@ -8,7 +9,7 @@ import { Page, expect } from '@playwright/test';
  */
 export async function createScheduleViaUI(page: Page, baseName: string = 'Test Schedule'): Promise<string> {
   // Generate unique name to avoid conflicts
-  const uniqueName = `${baseName} ${Math.random().toString(36).substring(7)}`;
+  const uniqueName = getUniqueName(baseName);
 
   // Navigate to schedules list if not already there
   try {

@@ -19,6 +19,7 @@ export async function signInTestUser(page: Page, user: TestUser) {
 
   // Navigate to the signin endpoint to ensure cookies are set properly in the browser context
   await page.goto('/auth/signout');
+  await page.waitForLoadState('networkidle');
   await page.goto('/auth/signin', { waitUntil: 'domcontentloaded' });
 
   // Fill in the form
@@ -36,16 +37,8 @@ export async function signInTestUser(page: Page, user: TestUser) {
  */
 export async function signOut(page: Page) {
   // Navigate to schedules list with retry for Firefox
-  try {
-    await page.goto('/auth/signout');
-  } catch (error) {
-    if (error.message.includes('NS_BINDING_ABORTED')) {
-      await page.waitForTimeout(1000);
-      await page.goto('/auth/signout');
-    } else {
-      throw error;
-    }
-  }
+  await page.goto('/auth/signout');
+  await page.waitForLoadState('networkidle');
 }
 
 /**
