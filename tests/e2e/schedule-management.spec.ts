@@ -21,7 +21,7 @@ test.describe('Schedule Management', () => {
 
   test('should create a new schedule', async ({ page }) => {
     const scheduleName = getUniqueName('Test Schedule');
-    
+
     // Click create schedule button
     await page.getByTestId('new-schedule-button').click();
 
@@ -42,7 +42,7 @@ test.describe('Schedule Management', () => {
 
   test('should update schedule name', async ({ page }) => {
     // Create a schedule via UI
-    const originalName = await createScheduleViaUI(page, getUniqueName('Original Schedule'));
+    const originalName = await createScheduleViaUI(page, 'Original Schedule');
 
     // Navigate to schedule detail
     await navigateToScheduleDetail(page, originalName);
@@ -57,7 +57,7 @@ test.describe('Schedule Management', () => {
 
   test('should add schedule entry', async ({ page }) => {
     // Create a schedule via UI
-    const scheduleName = await createScheduleViaUI(page, getUniqueName('Test Schedule'));
+    const scheduleName = await createScheduleViaUI(page, 'Test Schedule');
 
     // Navigate to schedule detail
     await navigateToScheduleDetail(page, scheduleName);
@@ -77,7 +77,7 @@ test.describe('Schedule Management', () => {
 
   test('should delete schedule entry', async ({ page }) => {
     // Create a schedule via UI
-    const scheduleName = await createScheduleViaUI(page, getUniqueName('Test Schedule'));
+    const scheduleName = await createScheduleViaUI(page, 'Test Schedule');
 
     // Navigate to schedule detail
     await navigateToScheduleDetail(page, scheduleName);
@@ -103,7 +103,7 @@ test.describe('Schedule Management', () => {
 
   test('should edit schedule entry', async ({ page }) => {
     // Create a schedule via UI
-    const scheduleName = await createScheduleViaUI(page, getUniqueName('Test Schedule'));
+    const scheduleName = await createScheduleViaUI(page, 'Test Schedule');
 
     // Navigate to schedule detail
     await navigateToScheduleDetail(page, scheduleName);

@@ -12,16 +12,8 @@ export async function createScheduleViaUI(page: Page, baseName: string = 'Test S
   const uniqueName = getUniqueName(baseName);
 
   // Navigate to schedules list if not already there
-  try {
-    await page.goto('/');
-  } catch (error) {
-    if (error.message.includes('NS_BINDING_ABORTED')) {
-      await page.waitForTimeout(1000);
-      await page.goto('/', { waitUntil: 'domcontentloaded' });
-    } else {
-      throw error;
-    }
-  }
+  await page.goto('/');
+  await page.waitForLoadState('networkidle');
 
   // Click create schedule button
   await page.getByTestId('new-schedule-button').click();
@@ -33,6 +25,7 @@ export async function createScheduleViaUI(page: Page, baseName: string = 'Test S
 
   // Submit form and wait for completion
   await page.getByTestId('create-schedule-submit-button').click();
+  await page.waitForLoadState('networkidle');
   await expect(page.getByTestId('create-schedule-modal')).not.toBeVisible();
 
   // Verify schedule appears in the schedule list specifically
@@ -99,6 +92,7 @@ export async function addScheduleEntry(page: Page, entry: ScheduleEntryDetails):
 
   // Submit entry and wait for completion
   await page.getByTestId('add-entry-submit-button').click();
+  await page.waitForLoadState('networkidle');
   await expect(page.getByTestId('add-entry-modal')).not.toBeVisible();
 
   // Verify entry appears in the weekly grid (not calendar view)
@@ -133,6 +127,7 @@ export async function editScheduleEntry(page: Page, entryName: string, newDetail
 
   // Save changes
   await page.getByTestId('edit-entry-save-button').click();
+  await page.waitForLoadState('networkidle');
   await expect(page.getByTestId('edit-entry-modal')).not.toBeVisible();
 
   // Verify updated entry appears in the weekly grid
@@ -154,6 +149,7 @@ export async function deleteScheduleEntry(page: Page, entryName: string): Promis
   // Click delete button and handle potential confirmation dialog
   page.on('dialog', dialog => dialog.accept()); // Auto-accept any confirmation dialogs
   await page.getByTestId('edit-entry-delete-button').click();
+  await page.waitForLoadState('networkidle');
 
   // Wait for modal to close or entry to be removed from the page
   await expect(page.getByTestId('edit-entry-modal')).not.toBeVisible();
