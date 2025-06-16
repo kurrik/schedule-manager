@@ -38,7 +38,6 @@ export class ICalService {
     // For each date in the range, materialize entries and create events
     let current = new Date(startDate);
     while (current <= endDate) {
-      const dateStr = current.toISOString().split('T')[0];
       const entries = CalendarMaterializationService.materializeScheduleForDate(schedule, current, overrides);
       for (const entry of entries) {
         this.addSingleEvent(calendar, entry, schedule, baseUrl);
