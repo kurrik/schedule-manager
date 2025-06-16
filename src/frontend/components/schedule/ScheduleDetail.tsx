@@ -103,19 +103,19 @@ const ScheduleDetail: Component = () => {
     const viewDate = currentViewDate();
     const year = viewDate.getFullYear();
     const month = viewDate.getMonth();
-    
+
     // Get the same date range that the calendar displays (6 weeks starting from Sunday before first day)
     const firstDay = new Date(year, month, 1);
     const startingDayOfWeek = firstDay.getDay();
-    
+
     // Start from the beginning of the week containing the first day
     const startDate = new Date(firstDay);
     startDate.setDate(startDate.getDate() - startingDayOfWeek);
-    
+
     // End date is 42 days later (6 weeks * 7 days)
     const endDate = new Date(startDate);
     endDate.setDate(startDate.getDate() + 41); // 41 because we include the start date
-    
+
     const startDateStr = startDate.toISOString().split('T')[0];
     const endDateStr = endDate.toISOString().split('T')[0];
 
@@ -235,10 +235,10 @@ const ScheduleDetail: Component = () => {
     const sched = schedule();
     const user = currentUser();
     if (!sched || !user) return false;
-    
+
     const users = scheduleUsers();
     if (!users) return false;
-    
+
     return users.owner.email === user.email;
   };
 
@@ -278,9 +278,9 @@ const ScheduleDetail: Component = () => {
     try {
       setIsLoading(true);
       await api.updatePhaseEntry(
-        schedule()!.id, 
-        editingEntryPhase()!.id, 
-        editingEntryId()!, 
+        schedule()!.id,
+        editingEntryPhase()!.id,
+        editingEntryId()!,
         entryForm()
       );
       setShowEditModal(false);
@@ -301,8 +301,8 @@ const ScheduleDetail: Component = () => {
     try {
       setIsLoading(true);
       await api.deletePhaseEntry(
-        schedule()!.id, 
-        editingEntryPhase()!.id, 
+        schedule()!.id,
+        editingEntryPhase()!.id,
         editingEntryId()!
       );
       setShowEditModal(false);
@@ -323,7 +323,7 @@ const ScheduleDetail: Component = () => {
       console.error('Entry not found:', entryId);
       return;
     }
-    
+
     setEntryForm({ ...entry });
     setEditingEntryId(entryId);
     setEditingEntryPhase(phase);
@@ -385,7 +385,7 @@ const ScheduleDetail: Component = () => {
   // Group entries by phase and day for the phase-based grid
   const entriesByPhaseAndDay = () => {
     if (!schedule()) return [];
-    
+
     return schedule()!.phases.map(phase => {
       const grouped = Array(7).fill(null).map(() => []);
       phase.entries.forEach((entry) => {
@@ -402,7 +402,7 @@ const ScheduleDetail: Component = () => {
     if (!phase.startDate && !phase.endDate) {
       return 'Always active';
     }
-    
+
     const formatDate = (dateStr: string) => {
       return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {
         month: 'short',
@@ -418,7 +418,7 @@ const ScheduleDetail: Component = () => {
     } else if (phase.endDate) {
       return `Until ${formatDate(phase.endDate)}`;
     }
-    
+
     return '';
   };
 
@@ -443,15 +443,15 @@ const ScheduleDetail: Component = () => {
 
     const dateStr = date.toISOString().split('T')[0];
     const dayOfWeek = date.getDay();
-    
+
     // Get recurring entries from all active phases for this day of week
     const recurringEntries: ScheduleEntry[] = [];
-    
+
     for (const phase of schedule()!.phases) {
       // Check if this phase is active on the given date
-      const isPhaseActive = (!phase.startDate || dateStr >= phase.startDate) && 
-                           (!phase.endDate || dateStr <= phase.endDate);
-      
+      const isPhaseActive = (!phase.startDate || dateStr >= phase.startDate) &&
+        (!phase.endDate || dateStr <= phase.endDate);
+
       if (isPhaseActive) {
         // Add entries from this active phase
         const phaseEntries = phase.entries.filter(entry => entry.dayOfWeek === dayOfWeek);
@@ -467,7 +467,7 @@ const ScheduleDetail: Component = () => {
     // Process recurring entries, applying modifications and skips
     for (const entry of recurringEntries) {
       if (!entry.id) continue; // Skip entries without IDs
-      
+
       // Check if this entry is skipped
       const skipOverride = dateOverrides.find(
         override => override.overrideType === 'SKIP' && override.baseEntryId === entry.id
@@ -539,28 +539,28 @@ const ScheduleDetail: Component = () => {
     const viewDate = currentViewDate();
     const year = viewDate.getFullYear();
     const month = viewDate.getMonth();
-    
+
     // First day of the month
     const firstDay = new Date(year, month, 1);
-    
+
     // Get the day of week for the first day (0 = Sunday)
     const startingDayOfWeek = firstDay.getDay();
-    
+
     // Total days to show (6 weeks * 7 days = 42 days)
     const totalDays = 42;
     const days = [];
-    
+
     // Start from the beginning of the week containing the first day
     const startDate = new Date(firstDay);
     startDate.setDate(startDate.getDate() - startingDayOfWeek);
-    
+
     for (let i = 0; i < totalDays; i++) {
       const currentDate = new Date(startDate);
       currentDate.setDate(startDate.getDate() + i);
-      
+
       const isCurrentMonth = currentDate.getMonth() === month;
       const materializedEntries = materializeEntriesForDate(currentDate);
-      
+
       days.push({
         date: currentDate,
         day: currentDate.getDate(),
@@ -568,7 +568,7 @@ const ScheduleDetail: Component = () => {
         entries: materializedEntries,
       });
     }
-    
+
     return days;
   };
 
@@ -595,7 +595,7 @@ const ScheduleDetail: Component = () => {
         overrideDate: selectedDate(),
         overrideData: oneTimeEntryForm(),
       };
-      
+
       await api.createScheduleOverride(schedule()!.id, overrideData);
       setShowAddOneTimeModal(false);
       setOneTimeEntryForm({
@@ -623,7 +623,7 @@ const ScheduleDetail: Component = () => {
         overrideDate: selectedDate(),
         baseEntryId: entry.baseEntryId || entry.id,
       };
-      
+
       await api.createScheduleOverride(schedule()!.id, overrideData);
       setShowEntryActionModal(false);
       setSelectedEntry(null);
@@ -662,7 +662,7 @@ const ScheduleDetail: Component = () => {
         baseEntryId: entry.baseEntryId || entry.id,
         overrideData: modifyEntryForm(),
       };
-      
+
       await api.createScheduleOverride(schedule()!.id, overrideData);
       setShowModifyModal(false);
       setSelectedEntry(null);
@@ -706,7 +706,7 @@ const ScheduleDetail: Component = () => {
     try {
       setIsLoading(true);
       let overrideData;
-      
+
       if (entry.overrideType === 'MODIFY') {
         overrideData = {
           overrideType: 'MODIFY' as const,
@@ -721,7 +721,7 @@ const ScheduleDetail: Component = () => {
           overrideData: oneTimeEntryForm(),
         };
       }
-      
+
       if (overrideData) {
         await api.updateScheduleOverride(schedule()!.id, entry.id, overrideData);
         if (entry.overrideType === 'MODIFY') {
@@ -852,7 +852,7 @@ const ScheduleDetail: Component = () => {
 
     try {
       setIsLoading(true);
-      
+
       // Update the original phase to end at the transition date
       await api.updateSchedulePhase(schedule()!.id, phase.id, {
         name: phase.name,
@@ -892,8 +892,8 @@ const ScheduleDetail: Component = () => {
               </div>
               <div class="flex items-center gap-2">
                 <h1 class="text-3xl font-bold">{schedule()?.name}</h1>
-                <button 
-                  class="btn btn-ghost btn-sm" 
+                <button
+                  class="btn btn-ghost btn-sm"
                   data-testid="edit-schedule-button"
                   onClick={openEditScheduleModal}
                   title="Edit schedule"
@@ -901,8 +901,8 @@ const ScheduleDetail: Component = () => {
                   ✏️
                 </button>
                 <Show when={isCurrentUserOwner()}>
-                  <button 
-                    class="btn btn-ghost btn-sm text-info" 
+                  <button
+                    class="btn btn-ghost btn-sm text-info"
                     onClick={openSharingModal}
                     title="Manage sharing"
                   >
@@ -910,8 +910,8 @@ const ScheduleDetail: Component = () => {
                   </button>
                 </Show>
                 <Show when={isCurrentUserOwner()}>
-                  <button 
-                    class="btn btn-ghost btn-sm text-error" 
+                  <button
+                    class="btn btn-ghost btn-sm text-error"
                     onClick={() => setShowDeleteScheduleModal(true)}
                     title="Delete schedule"
                   >
@@ -935,16 +935,16 @@ const ScheduleDetail: Component = () => {
                         <h2 class="text-xl font-semibold">
                           {phaseData.phase.name || 'Default Phase'}
                         </h2>
-                        <button 
-                          class="btn btn-ghost btn-sm" 
+                        <button
+                          class="btn btn-ghost btn-sm"
                           onClick={() => openEditPhaseModal(phaseData.phase)}
                           title="Edit phase"
                         >
                           ✏️
                         </button>
                         <Show when={!phaseData.phase.endDate}>
-                          <button 
-                            class="btn btn-ghost btn-sm text-info" 
+                          <button
+                            class="btn btn-ghost btn-sm text-info"
                             onClick={() => openSplitPhaseModal(phaseData.phase)}
                             title="Split phase at date"
                           >
@@ -952,8 +952,8 @@ const ScheduleDetail: Component = () => {
                           </button>
                         </Show>
                         <Show when={schedule()!.phases.length > 1}>
-                          <button 
-                            class="btn btn-ghost btn-sm text-error" 
+                          <button
+                            class="btn btn-ghost btn-sm text-error"
                             onClick={() => openDeletePhaseModal(phaseData.phase)}
                             title="Delete phase"
                           >
@@ -975,7 +975,7 @@ const ScheduleDetail: Component = () => {
                         <div class="space-y-2 min-h-20">
                           <For each={phaseData.entriesByDay[dayIndex()]}>
                             {(entry: ScheduleEntry) => (
-                              <div 
+                              <div
                                 class="bg-primary text-primary-content p-2 rounded cursor-pointer hover:bg-primary-focus"
                                 onClick={() => openEditModal(entry.id!, phaseData.phase)}
                               >
@@ -986,7 +986,7 @@ const ScheduleDetail: Component = () => {
                               </div>
                             )}
                           </For>
-                          <div 
+                          <div
                             class="border-2 border-dashed border-base-300 rounded p-4 text-center cursor-pointer hover:border-primary hover:bg-base-200 transition-colors"
                             onClick={() => openAddModalForDay(dayIndex(), phaseData.phase)}
                           >
@@ -1008,12 +1008,12 @@ const ScheduleDetail: Component = () => {
           <div class="bg-base-200 rounded-lg p-6 mb-8">
             <h2 class="text-xl font-semibold mb-4">iCal Feed</h2>
             <div class="flex items-center gap-4">
-              <input 
-                class="input input-bordered flex-1" 
+              <input
+                class="input input-bordered flex-1"
                 value={`${window.location.origin}/ical/${schedule()?.icalUrl}`}
                 readonly
               />
-              <button 
+              <button
                 class="btn btn-outline"
                 onClick={() => navigator.clipboard?.writeText(`${window.location.origin}/ical/${schedule()?.icalUrl}`)}
               >
@@ -1030,7 +1030,7 @@ const ScheduleDetail: Component = () => {
             <div class="flex items-center justify-between mb-6">
               <h2 class="text-xl font-semibold">Calendar View</h2>
               <div class="flex items-center gap-4">
-                <button 
+                <button
                   class="btn btn-outline btn-sm"
                   onClick={() => navigateMonth('prev')}
                 >
@@ -1039,7 +1039,7 @@ const ScheduleDetail: Component = () => {
                 <span class="text-lg font-medium min-w-48 text-center">
                   {formatMonthYear(currentViewDate())}
                 </span>
-                <button 
+                <button
                   class="btn btn-outline btn-sm"
                   onClick={() => navigateMonth('next')}
                 >
@@ -1062,30 +1062,30 @@ const ScheduleDetail: Component = () => {
               {/* Calendar days */}
               <For each={calendarDays()}>
                 {(day: any) => (
-                  <div 
-                    class={`min-h-24 p-1 border border-base-300 cursor-pointer hover:bg-base-200 ${
-                      day.isCurrentMonth ? 'bg-base-100' : 'bg-base-300/50'
-                    }`}
+                  <div
+                    data-day-id={day.date.toISOString().split('T')[0]}
+                    class={`min-h-24 p-1 border border-base-300 cursor-pointer hover:bg-base-200 ${day.isCurrentMonth ? 'bg-base-100' : 'bg-base-300/50'
+                      }`}
                     onClick={() => handleCalendarDateClick(day.date)}
                   >
-                    <div class={`text-sm font-medium mb-1 ${
-                      day.isCurrentMonth ? 'text-base-content' : 'text-base-content/50'
-                    }`}>
+                    <div class={`text-sm font-medium mb-1 ${day.isCurrentMonth ? 'text-base-content' : 'text-base-content/50'
+                      }`}>
                       {day.day}
                     </div>
                     <div class="space-y-1">
                       <For each={day.entries}>
                         {(entry: MaterializedEntry) => (
-                          <div 
-                            class={`text-xs p-1 rounded truncate cursor-pointer hover:opacity-80 ${
-                              entry.isOverride 
-                                ? entry.overrideType === 'MODIFY' 
-                                  ? 'bg-warning text-warning-content' 
-                                  : entry.overrideType === 'ONE_TIME'
+                          <div
+                            data-entry-id={entry.id}
+                            data-entry-name={entry.name}
+                            class={`text-xs p-1 rounded truncate cursor-pointer hover:opacity-80 ${entry.isOverride
+                              ? entry.overrideType === 'MODIFY'
+                                ? 'bg-warning text-warning-content'
+                                : entry.overrideType === 'ONE_TIME'
                                   ? 'bg-info text-info-content'
                                   : 'bg-primary text-primary-content'
-                                : 'bg-primary text-primary-content'
-                            }`}
+                              : 'bg-primary text-primary-content'
+                              }`}
                             onClick={(e) => handleEntryClick(entry, e)}
                             title={`Click to modify "${entry.name}"`}
                           >
@@ -1093,8 +1093,8 @@ const ScheduleDetail: Component = () => {
                               {entry.name}
                               {entry.isOverride && (
                                 <span class="ml-1 text-xs opacity-75">
-                                  {entry.overrideType === 'MODIFY' ? '📝' : 
-                                   entry.overrideType === 'ONE_TIME' ? '⭐' : ''}
+                                  {entry.overrideType === 'MODIFY' ? '📝' :
+                                    entry.overrideType === 'ONE_TIME' ? '⭐' : ''}
                                 </span>
                               )}
                             </div>
@@ -1259,9 +1259,9 @@ const ScheduleDetail: Component = () => {
                   }}>
                     Cancel
                   </button>
-                  <button 
-                    type="button" 
-                    class="btn btn-error mr-2" 
+                  <button
+                    type="button"
+                    class="btn btn-error mr-2"
                     data-testid="edit-entry-delete-button"
                     onClick={() => {
                       handleDeleteEntry();
@@ -1327,7 +1327,7 @@ const ScheduleDetail: Component = () => {
             <div class="modal-box">
               <h2 class="font-bold text-lg text-error mb-4">Delete Schedule</h2>
               <p class="mb-4">
-                Are you sure you want to delete "<strong>{schedule()?.name}</strong>"? 
+                Are you sure you want to delete "<strong>{schedule()?.name}</strong>"?
                 This will permanently delete the schedule and all its entries. This action cannot be undone.
               </p>
               <div class="bg-warning/20 p-3 rounded mb-4">
@@ -1336,16 +1336,16 @@ const ScheduleDetail: Component = () => {
                 </p>
               </div>
               <div class="flex justify-end">
-                <button 
-                  type="button" 
-                  class="btn btn-ghost mr-2" 
+                <button
+                  type="button"
+                  class="btn btn-ghost mr-2"
                   onClick={() => setShowDeleteScheduleModal(false)}
                 >
                   Cancel
                 </button>
-                <button 
-                  type="button" 
-                  class="btn btn-error" 
+                <button
+                  type="button"
+                  class="btn btn-error"
                   onClick={handleDeleteSchedule}
                 >
                   Delete Schedule
@@ -1362,14 +1362,14 @@ const ScheduleDetail: Component = () => {
               <h2 class="font-bold text-lg mb-4">
                 Add One-Time Entry
                 <span class="text-sm font-normal text-gray-500 ml-2">
-                  ({selectedDate() && new Date(selectedDate() + 'T00:00:00').toLocaleDateString('en-US', { 
-                    weekday: 'long', 
-                    month: 'long', 
-                    day: 'numeric' 
+                  ({selectedDate() && new Date(selectedDate() + 'T00:00:00').toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    month: 'long',
+                    day: 'numeric'
                   })})
                 </span>
               </h2>
-              
+
               <p class="text-sm text-gray-600 mb-4">
                 Add a special entry that will only appear on this specific date.
               </p>
@@ -1411,9 +1411,9 @@ const ScheduleDetail: Component = () => {
                   />
                 </div>
                 <div class="flex justify-end">
-                  <button 
-                    type="button" 
-                    class="btn btn-ghost mr-2" 
+                  <button
+                    type="button"
+                    class="btn btn-ghost mr-2"
                     onClick={() => setShowAddOneTimeModal(false)}
                   >
                     Cancel
@@ -1429,19 +1429,19 @@ const ScheduleDetail: Component = () => {
 
         {/* Entry Action Modal */}
         <Show when={showEntryActionModal() && selectedEntry()}>
-          <div class="modal modal-open">
+          <div class="modal modal-open" data-testid="entry-action-modal">
             <div class="modal-box">
               <h2 class="font-bold text-lg mb-4">
                 Manage Entry
                 <span class="text-sm font-normal text-gray-500 ml-2">
-                  ({selectedDate() && new Date(selectedDate() + 'T00:00:00').toLocaleDateString('en-US', { 
-                    weekday: 'long', 
-                    month: 'long', 
-                    day: 'numeric' 
+                  ({selectedDate() && new Date(selectedDate() + 'T00:00:00').toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    month: 'long',
+                    day: 'numeric'
                   })})
                 </span>
               </h2>
-              
+
               <div class="mb-4 p-3 bg-base-200 rounded">
                 <div class="font-medium">{selectedEntry()?.name}</div>
                 <div class="text-sm text-gray-600">
@@ -1456,27 +1456,28 @@ const ScheduleDetail: Component = () => {
 
               <div class="space-y-3">
                 <Show when={!selectedEntry()?.isOverride}>
-                  <button 
+                  <button
                     class="btn btn-warning w-full"
                     onClick={handleModifyEntry}
                   >
                     📝 Modify this instance
                   </button>
-                  <button 
+                  <button
                     class="btn btn-error w-full"
                     onClick={handleSkipEntry}
+                    data-testid="skip-instance-button"
                   >
                     ❌ Skip this instance
                   </button>
                 </Show>
                 <Show when={selectedEntry()?.isOverride}>
-                  <button 
+                  <button
                     class="btn btn-warning w-full"
                     onClick={handleEditOverride}
                   >
                     ✏️ Edit override
                   </button>
-                  <button 
+                  <button
                     class="btn btn-error w-full"
                     onClick={handleRemoveOverride}
                   >
@@ -1486,9 +1487,9 @@ const ScheduleDetail: Component = () => {
               </div>
 
               <div class="flex justify-end mt-4">
-                <button 
-                  type="button" 
-                  class="btn btn-ghost" 
+                <button
+                  type="button"
+                  class="btn btn-ghost"
                   onClick={() => {
                     setShowEntryActionModal(false);
                     setSelectedEntry(null);
@@ -1508,14 +1509,14 @@ const ScheduleDetail: Component = () => {
               <h2 class="font-bold text-lg mb-4">
                 Modify Entry Instance
                 <span class="text-sm font-normal text-gray-500 ml-2">
-                  ({selectedDate() && new Date(selectedDate() + 'T00:00:00').toLocaleDateString('en-US', { 
-                    weekday: 'long', 
-                    month: 'long', 
-                    day: 'numeric' 
+                  ({selectedDate() && new Date(selectedDate() + 'T00:00:00').toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    month: 'long',
+                    day: 'numeric'
                   })})
                 </span>
               </h2>
-              
+
               <p class="text-sm text-gray-600 mb-4">
                 Modify this instance without affecting the recurring schedule.
               </p>
@@ -1556,9 +1557,9 @@ const ScheduleDetail: Component = () => {
                   />
                 </div>
                 <div class="flex justify-end">
-                  <button 
-                    type="button" 
-                    class="btn btn-ghost mr-2" 
+                  <button
+                    type="button"
+                    class="btn btn-ghost mr-2"
                     onClick={() => setShowModifyModal(false)}
                   >
                     Cancel
@@ -1615,9 +1616,9 @@ const ScheduleDetail: Component = () => {
                   </div>
                 </div>
                 <div class="flex justify-end">
-                  <button 
-                    type="button" 
-                    class="btn btn-ghost mr-2" 
+                  <button
+                    type="button"
+                    class="btn btn-ghost mr-2"
                     onClick={() => {
                       setShowEditPhaseModal(false);
                       setEditingPhase(null);
@@ -1640,7 +1641,7 @@ const ScheduleDetail: Component = () => {
             <div class="modal-box">
               <h2 class="font-bold text-lg text-error mb-4">Delete Phase</h2>
               <p class="mb-4">
-                Are you sure you want to delete the phase "<strong>{editingPhase()?.name || 'Default Phase'}</strong>"? 
+                Are you sure you want to delete the phase "<strong>{editingPhase()?.name || 'Default Phase'}</strong>"?
                 This will permanently delete the phase and all its schedule entries. This action cannot be undone.
               </p>
               <Show when={editingPhase()?.entries && editingPhase()!.entries.length > 0}>
@@ -1651,9 +1652,9 @@ const ScheduleDetail: Component = () => {
                 </div>
               </Show>
               <div class="flex justify-end">
-                <button 
-                  type="button" 
-                  class="btn btn-ghost mr-2" 
+                <button
+                  type="button"
+                  class="btn btn-ghost mr-2"
                   onClick={() => {
                     setShowDeletePhaseModal(false);
                     setEditingPhase(null);
@@ -1661,9 +1662,9 @@ const ScheduleDetail: Component = () => {
                 >
                   Cancel
                 </button>
-                <button 
-                  type="button" 
-                  class="btn btn-error" 
+                <button
+                  type="button"
+                  class="btn btn-error"
                   onClick={handleDeletePhase}
                 >
                   Delete Phase
@@ -1714,9 +1715,9 @@ const ScheduleDetail: Component = () => {
                   </p>
                 </div>
                 <div class="flex justify-end">
-                  <button 
-                    type="button" 
-                    class="btn btn-ghost mr-2" 
+                  <button
+                    type="button"
+                    class="btn btn-ghost mr-2"
                     onClick={() => {
                       setShowSplitPhaseModal(false);
                       setSplittingPhase(null);
@@ -1738,7 +1739,7 @@ const ScheduleDetail: Component = () => {
           <div class="modal modal-open">
             <div class="modal-box max-w-2xl">
               <h2 class="font-bold text-lg mb-4">Manage Schedule Sharing</h2>
-              
+
               <Show when={scheduleUsers()}>
                 <div class="space-y-4">
                   {/* Owner */}
@@ -1775,7 +1776,7 @@ const ScheduleDetail: Component = () => {
                         <div class="flex items-center gap-2">
                           <div class="badge badge-outline">Editor</div>
                           <Show when={isCurrentUserOwner()}>
-                            <button 
+                            <button
                               class="btn btn-ghost btn-sm text-error"
                               onClick={() => handleRemoveSharedUser(user.id)}
                               title="Remove access"
@@ -1818,7 +1819,7 @@ const ScheduleDetail: Component = () => {
                   </Show>
                 </div>
               </Show>
-              
+
               <Show when={!scheduleUsers()}>
                 <div class="flex justify-center py-8">
                   <LoadingSpinner fullScreen={false} />
@@ -1826,9 +1827,9 @@ const ScheduleDetail: Component = () => {
               </Show>
 
               <div class="flex justify-end mt-6">
-                <button 
-                  type="button" 
-                  class="btn btn-ghost" 
+                <button
+                  type="button"
+                  class="btn btn-ghost"
                   onClick={() => setShowSharingModal(false)}
                 >
                   Close

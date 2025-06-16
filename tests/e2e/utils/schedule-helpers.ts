@@ -1,4 +1,4 @@
-import { Page, expect } from '@playwright/test';
+import { Page, expect, APIRequestContext } from '@playwright/test';
 import { getUniqueName } from './index';
 
 /**
@@ -105,6 +105,34 @@ export async function addScheduleEntry(page: Page, entry: ScheduleEntryDetails):
  * @param entryName - Name of the entry to edit
  * @param newDetails - New entry details
  */
+/**
+ * Schedules a SKIP override for an entry using the UI.
+ * @param page - Playwright page object
+ * @param entryName - Name of the entry to override
+ * @param day - Day of the entry (e.g., 'Monday')
+ * @param date - Date string (YYYY-MM-DD) for the override
+ */
+export async function scheduleSkipOverrideViaUI(page: Page, entryName: string, day: string, date: string): Promise<void> {
+  // Go to the calendar view (should already be visible after navigation)
+  // Find the calendar cell for the given date (YYYY-MM-DD)
+  const calendarCell = page.locator(`[data-day-id="${date}"]`);
+  await expect(calendarCell).toBeVisible();
+
+  // Find the entry by data-entry-id within that cell and click it
+  const entryButton = calendarCell.locator(`[data-entry-id][data-entry-name="${entryName}"]`).first();
+  await entryButton.click();
+
+  // Wait for the modal to appear
+  await expect(page.getByTestId('entry-action-modal')).toBeVisible();
+
+  // Click the 'Skip this instance' button
+  await page.getByTestId('skip-instance-button').click();
+
+  // Wait for the modal to close
+  await expect(page.getByTestId('entry-action-modal')).not.toBeVisible();
+}
+
+
 export async function editScheduleEntry(page: Page, entryName: string, newDetails: Partial<ScheduleEntryDetails>): Promise<void> {
   // Click on the entry in the weekly grid to open edit modal
   await page.locator('.bg-primary').getByText(entryName).first().click();
@@ -182,4 +210,16 @@ export async function editScheduleInfo(page: Page, newName?: string, newTimezone
   if (newName) {
     await expect(page.getByRole('heading', { name: newName })).toBeVisible();
   }
+}
+
+/**
+ * Gets the iCal feed text for a schedule by its icalUrl property.
+ * @param request - Playwright APIRequestContext
+ * @param icalUrl - The unique ical URL for the schedule
+ * @returns iCal feed as string
+ */
+export async function fetchICalFeed(request: APIRequestContext, icalUrl: string): Promise<string> {
+  const response = await request.get(`/ical/${icalUrl}`);
+  expect(response.status()).toBe(200);
+  return await response.text();
 }
