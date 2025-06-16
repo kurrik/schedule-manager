@@ -19,7 +19,7 @@ test.describe('iCal Feed Integration', () => {
     await signInTestUser(page, testUsers.user1);
   });
 
-  test('should reflect SKIP override in iCal feed (TDD)', async ({ page, request }) => {
+  test('should reflect SKIP override in iCal feed', async ({ page, request }) => {
     // 1. Create a schedule
     const scheduleName = await createScheduleViaUI(page, 'iCal Override Schedule');
     await navigateToScheduleDetail(page, scheduleName);
@@ -59,6 +59,6 @@ test.describe('iCal Feed Integration', () => {
     // Look for DTSTART on the overridden date
     const dtstartPattern = `DTSTART;TZID=America/New_York:${dateStr.replace(/-/g, '')}T100000`;
     const eventForSkippedDate = icalFeed.includes(dtstartPattern);
-    expect(eventForSkippedDate).toBeFalsy(); // This will FAIL (event is still present)
+    expect(eventForSkippedDate).toBeFalsy();
   });
 });

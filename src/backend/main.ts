@@ -132,11 +132,15 @@ app.get('/ical/:icalUrl', async (c) => {
       return c.notFound();
     }
 
-    // Generate the iCal feed
+    // Fetch schedule overrides
+    const overrideRepo = new (await import('./infrastructure/repositories/d1-schedule-override-repository')).D1ScheduleOverrideRepository(c.env.DB);
+    const overrides = await overrideRepo.findByScheduleId(schedule.id);
+
+    // Generate the iCal feed with overrides
     const icalService = new ICalService();
     const url = new URL(c.req.url);
     const baseUrl = c.env.ROOT_DOMAIN || `${url.protocol}//${url.host}`;
-    const icalContent = icalService.generateFeed(schedule, baseUrl);
+    const icalContent = icalService.generateFeed(schedule, baseUrl, overrides);
 
     // Return with proper Content-Type and headers
     return c.text(icalContent, 200, {
